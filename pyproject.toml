@@ -29,6 +29,7 @@ dependencies = [
   "sox",
   "onnxruntime",
   "einops",
+  "pytest>=9.0.2",
 ]
 
 [project.urls]
