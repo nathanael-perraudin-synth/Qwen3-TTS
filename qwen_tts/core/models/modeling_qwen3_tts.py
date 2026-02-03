@@ -1425,6 +1425,8 @@ class Qwen3TTSTalkerDecoderLayer(GradientCheckpointingLayer):
 
 
 class Qwen3TTSTalkerModel(Qwen3TTSTalkerTextPreTrainedModel):
+    # this is the model that generates the higher codebook from the codebook 0
+    # it is a transformer decoder model
     config_class = Qwen3TTSTalkerConfig
     base_model_prefix = "talker.model"
 
@@ -1667,6 +1669,7 @@ class Qwen3TTSTalkerForConditionalGeneration(Qwen3TTSTalkerTextPreTrainedModel, 
             codec_ids = None
         # Generate
         else:
+            # this is where the higher codebook are predicted
             last_id_hidden = self.get_input_embeddings()(input_ids)
             predictor_result = self.code_predictor.generate(
                 inputs_embeds=torch.cat((past_hidden, last_id_hidden), dim=1),
