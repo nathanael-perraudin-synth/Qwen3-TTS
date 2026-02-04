@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from torch import nn
 
+from qwen_tts.core.copy_weights import copy_talker_weights
 from qwen_tts.core.models.standalone_talker_generation import StandaloneTalkerForConditionalGeneration
 from qwen_tts.core.configs import (
     Qwen3TTSTalkerConfig,
@@ -135,33 +136,8 @@ def test_models_produce_identical_outputs(
     trailing_text_hidden = torch.randn(2, 5, 256, device=device)
     tts_pad_embed = torch.randn(1, 1, 256, device=device)
     
-    # Copy weights from original to standalone
-    with torch.no_grad():
-        # Copy model weights
-        standalone_talker_gen.model.load_state_dict(original_talker_gen.model.state_dict())
-        
-        # Copy codec_head weights
-        standalone_talker_gen.codec_head.weight.data.copy_(
-            original_talker_gen.codec_head.weight.data
-        )
-        
-        # Copy text_projection weights
-        standalone_talker_gen.text_projection.load_state_dict(
-            original_talker_gen.text_projection.state_dict()
-        )
-        
-        # Copy code_predictor weights (if possible)
-        try:
-            standalone_talker_gen.code_predictor.model.load_state_dict(
-                original_talker_gen.code_predictor.model.state_dict()
-            )
-            for i in range(len(standalone_talker_gen.code_predictor.lm_head)):
-                standalone_talker_gen.code_predictor.lm_head[i].weight.data.copy_(
-                    original_talker_gen.code_predictor.lm_head[i].weight.data
-                )
-        except Exception:
-            pass  # Skip if structure differs
-    
+    copy_talker_weights(original_talker_gen, standalone_talker_gen)
+
     # Set same seed for both models
     torch.manual_seed(42)
     np.random.seed(42)

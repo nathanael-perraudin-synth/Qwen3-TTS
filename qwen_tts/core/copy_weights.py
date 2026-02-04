@@ -22,7 +22,27 @@ def copy_code_predictor_weights(original_code_predictor, target_code_predictor):
             original_code_predictor.small_to_mtp_projection.state_dict(),
             strict=True
         )
+        
+def copy_talker_weights(original_talker, target_talker):
+    with torch.no_grad():
+        # Copy talker model
+        target_talker.model.load_state_dict(
+            original_talker.model.state_dict(), strict=True
+        )
+        # Copy text projection
+        target_talker.text_projection.load_state_dict(
+            original_talker.text_projection.state_dict(), strict=True
+        )
 
+        # Copy codec head
+        target_talker.codec_head.weight.data.copy_(
+            original_talker.codec_head.weight.data
+        )
+            
+
+        # Copy code predictor
+        copy_code_predictor_weights(original_talker.code_predictor, target_talker.code_predictor)
+        
 
 def copy_model_weights(source_model, target_model):
     """Copy weights from source model to target model."""
@@ -33,20 +53,7 @@ def copy_model_weights(source_model, target_model):
             source_model.speaker_encoder.state_dict(), strict=True
         )
 
-        # Copy talker model
-        target_model.talker.model.load_state_dict(
-            source_model.talker.model.state_dict(), strict=True
-        )
 
-        # Copy text projection
-        target_model.talker.text_projection.load_state_dict(
-            source_model.talker.text_projection.state_dict(), strict=True
-        )
 
-        # Copy codec head
-        target_model.talker.codec_head.weight.data.copy_(
-            source_model.talker.codec_head.weight.data
-        )
-            
-    # Copy code predictor
-    copy_code_predictor_weights(source_model.talker.code_predictor, target_model.talker.code_predictor)
+    # Copy talker weights
+    copy_talker_weights(source_model.talker, target_model.talker)
