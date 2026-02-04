@@ -44,10 +44,12 @@ from transformers.utils import can_return_tuple, logging
 from transformers.utils.hub import cached_file
 
 from ...inference.qwen3_tts_tokenizer import Qwen3TTSTokenizer
-from .configuration_qwen3_tts import (Qwen3TTSConfig,
-                                      Qwen3TTSSpeakerEncoderConfig,
-                                      Qwen3TTSTalkerCodePredictorConfig,
-                                      Qwen3TTSTalkerConfig)
+from ..configs.configuration_qwen3_tts import (
+    Qwen3TTSConfig,
+    Qwen3TTSSpeakerEncoderConfig,
+    Qwen3TTSTalkerCodePredictorConfig,
+    Qwen3TTSTalkerConfig,
+)
 
 logger = logging.get_logger(__name__)
 
@@ -1010,6 +1012,8 @@ class Qwen3TTSDecoderLayer(GradientCheckpointingLayer):
             outputs += (self_attn_weights,)
 
         return outputs
+    
+
 
 
 class Qwen3TTSTalkerCodePredictorModel(Qwen3TTSPreTrainedModel):
@@ -2174,7 +2178,7 @@ class Qwen3TTSForConditionalGeneration(Qwen3TTSPreTrainedModel, GenerationMixin)
                                                    speaker_embed.view(1, 1, -1),
                                                    codec_input_emebdding_1], dim=1)
 
-            # '<|im_start|>assistant\n我叫通义千问，是阿里云的开源大模型。<|im_end|>\n<|im_start|>assistant\n'
+            # '<|im_start|>assistant\nMy name is Tongyi Qianwen, Alibaba Cloud\'s open-source LLM.<|im_end|>\n<|im_start|>assistant\n'
 
             # <|im_start|>assistant\n
             _talker_input_embed_role = self.talker.text_projection(
@@ -2204,7 +2208,7 @@ class Qwen3TTSForConditionalGeneration(Qwen3TTSPreTrainedModel, GenerationMixin)
                                                 self.talker.text_projection(self.talker.get_text_embeddings()(input_id[:, 3:4])) + codec_input_emebdding[:, -1:]], 
                                                 dim=1)
                 if non_streaming_mode:
-                    talker_input_embed = talker_input_embed[:, :-1] # 去掉原本放进去的text
+                    talker_input_embed = talker_input_embed[:, :-1]  # Remove the text token that was originally inserted
                     talker_input_embed = torch.cat([talker_input_embed,
                                                     torch.cat((self.talker.text_projection(
                                                         self.talker.get_text_embeddings()(input_id[:, 3:-5])
@@ -2229,7 +2233,7 @@ class Qwen3TTSForConditionalGeneration(Qwen3TTSPreTrainedModel, GenerationMixin)
                                                     ], dim=1)
                     trailing_text_hidden = tts_pad_embed
                 else:
-                    # 叫通义千问，是阿里云的开源大模型。
+                    # Content: "Tongyi Qianwen, Alibaba Cloud's open-source LLM." (example prefix)
                     trailing_text_hidden = torch.cat((self.talker.text_projection(
                                                         self.talker.get_text_embeddings()(input_id[:, 4:-5])
                                                     ), tts_eos_embed), dim=1)

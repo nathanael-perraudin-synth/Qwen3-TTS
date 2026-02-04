@@ -5,43 +5,12 @@ import numpy as np
 from torch import nn
 
 from qwen_tts.core.models.standalone_talker_generation import StandaloneTalkerForConditionalGeneration
-from qwen_tts.core.models.standalone_config import StandaloneTalkerConfig
-from qwen_tts.core.models.modeling_qwen3_tts import (
-    Qwen3TTSTalkerForConditionalGeneration,
+from qwen_tts.core.configs import (
     Qwen3TTSTalkerConfig,
+    TalkerConfig,
+    to_standalone_talker_config,
 )
-
-
-@pytest.fixture
-def talker_config():
-    return StandaloneTalkerConfig(
-        vocab_size=3072,
-        hidden_size=256,
-        intermediate_size=512,
-        num_hidden_layers=2,
-        num_attention_heads=4,
-        num_key_value_heads=2,
-        head_dim=64,
-        hidden_act="silu",
-        max_position_embeddings=1024,
-        rms_norm_eps=1e-6,
-        num_code_groups=4,
-        text_hidden_size=256,
-        codec_eos_token_id=4198,
-        codec_think_id=4202,
-        codec_nothink_id=4203,
-        codec_think_bos_id=4204,
-        codec_think_eos_id=4205,
-        codec_pad_id=4196,
-        codec_bos_id=4197,
-        rope_scaling={
-            "rope_type": "dynamic",
-            "factor": 2.0,
-            "original_max_position_embeddings": 1024,
-            "mrope_section": [10, 11, 11],  # Sums to 32 = head_dim/2
-            "interleaved": False,
-        },
-    )
+from qwen_tts.core.models.modeling_qwen3_tts import Qwen3TTSTalkerForConditionalGeneration
 
 
 @pytest.fixture
@@ -75,6 +44,11 @@ def original_talker_config():
             "interleaved": False,
         },
     )
+
+
+@pytest.fixture
+def talker_config(original_talker_config):
+    return to_standalone_talker_config(original_talker_config)
 
 
 @pytest.fixture

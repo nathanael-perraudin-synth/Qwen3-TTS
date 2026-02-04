@@ -13,7 +13,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .tokenizer_25hz.configuration_qwen3_tts_tokenizer_v1 import Qwen3TTSTokenizerV1Config
-from .tokenizer_25hz.modeling_qwen3_tts_tokenizer_v1 import Qwen3TTSTokenizerV1Model
-from .tokenizer_12hz.configuration_qwen3_tts_tokenizer_v2 import Qwen3TTSTokenizerV2Config
-from .tokenizer_12hz.modeling_qwen3_tts_tokenizer_v2 import Qwen3TTSTokenizerV2Model
+
+# Lazy imports so that importing qwen_tts.core.configs or qwen_tts.core.models
+# does not pull in tokenizers/transformers (e.g. when running standalone tests).
+
+
+def __getattr__(name):
+    if name == "Qwen3TTSTokenizerV1Config":
+        from .tokenizer_25hz.configuration_qwen3_tts_tokenizer_v1 import Qwen3TTSTokenizerV1Config
+        return Qwen3TTSTokenizerV1Config
+    if name == "Qwen3TTSTokenizerV1Model":
+        from .tokenizer_25hz.modeling_qwen3_tts_tokenizer_v1 import Qwen3TTSTokenizerV1Model
+        return Qwen3TTSTokenizerV1Model
+    if name == "Qwen3TTSTokenizerV2Config":
+        from .tokenizer_12hz.configuration_qwen3_tts_tokenizer_v2 import Qwen3TTSTokenizerV2Config
+        return Qwen3TTSTokenizerV2Config
+    if name == "Qwen3TTSTokenizerV2Model":
+        from .tokenizer_12hz.modeling_qwen3_tts_tokenizer_v2 import Qwen3TTSTokenizerV2Model
+        return Qwen3TTSTokenizerV2Model
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -4,17 +4,18 @@ from torch import nn
 from torch.nn import functional as F
 from typing import Optional, Tuple, Dict, Any, List
 
-from .standalone_config import StandaloneTalkerConfig
+from ..configs.standalone_config import TalkerConfig
 from .standalone_utils import (
-    ModelOutput, SimpleCache, DynamicCache,
-    create_causal_mask, create_sliding_window_causal_mask,
+    TransformerOutput, SimpleCache, DynamicCache,
     can_return_tuple, default_rope_init, dynamic_rope_update,
     apply_multimodal_rotary_pos_emb, rotate_half, repeat_kv, eager_attention_forward
 )
 from .standalone_code_predictor import (
     StandaloneRMSNorm, get_activation_fn, StandaloneMLP
 )
-
+from transformers.masking_utils import (create_causal_mask,
+                                        create_sliding_window_causal_mask)
+from qwen_tts.core.models.modeling_qwen3_tts import Qwen3TTSTalkerDecoderLayer
 
 class StandaloneResizeMLP(nn.Module):
     """Resize MLP for text projection."""
@@ -30,7 +31,7 @@ class StandaloneResizeMLP(nn.Module):
 
 class StandaloneTalkerRotaryEmbedding(nn.Module):
     """Standalone multimodal RoPE implementation for Talker."""
-    def __init__(self, config: StandaloneTalkerConfig, device=None):
+    def __init__(self, config: TalkerConfig, device=None):
         super().__init__()
         if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
             self.rope_type = config.rope_scaling.get("rope_type", "default")
@@ -63,9 +64,9 @@ class StandaloneTalkerRotaryEmbedding(nn.Module):
         return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
 
 
-class StandaloneTalkerAttention(nn.Module):
-    """Multi-headed attention for Talker with multimodal RoPE."""
-    def __init__(self, config: StandaloneTalkerConfig, layer_idx: int):
+class AttentionLayer(nn.Module):
+    """Multi-headed attention layer with multimodal RoPE."""
+    def __init__(self, config: TalkerConfig, layer_idx: int):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
@@ -136,12 +137,12 @@ class StandaloneTalkerAttention(nn.Module):
         return attn_output, attn_weights
 
 
-class StandaloneTalkerDecoderLayer(nn.Module):
+class DecoderLayer(nn.Module):
     """Decoder layer for Talker transformer."""
-    def __init__(self, config: StandaloneTalkerConfig, layer_idx: int):
+    def __init__(self, config: TalkerConfig, layer_idx: int):
         super().__init__()
         self.hidden_size = config.hidden_size
-        self.self_attn = StandaloneTalkerAttention(config, layer_idx)
+        self.self_attn = AttentionLayer(config, layer_idx)
         self.mlp = StandaloneMLP(config, intermediate_size=config.intermediate_size)
         self.input_layernorm = StandaloneRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = StandaloneRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
@@ -188,16 +189,16 @@ class StandaloneTalkerDecoderLayer(nn.Module):
         return outputs
 
 
-class StandaloneTalkerModel(nn.Module):
-    """Standalone talker model without transformers."""
+class BigTransformer(nn.Module):
+    """Big transformer model without transformers."""
     
-    def __init__(self, config: StandaloneTalkerConfig):
+    def __init__(self, config: TalkerConfig):
         super().__init__()
         self.config = config
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
         self.layers = nn.ModuleList(
-            [StandaloneTalkerDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
+            [Qwen3TTSTalkerDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
         )
         self.norm = StandaloneRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = StandaloneTalkerRotaryEmbedding(config)
@@ -224,7 +225,7 @@ class StandaloneTalkerModel(nn.Module):
         output_hidden_states: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
-    ) -> ModelOutput:
+    ) -> TransformerOutput:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -304,7 +305,7 @@ class StandaloneTalkerModel(nn.Module):
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
-        return ModelOutput(
+        return TransformerOutput(
             last_hidden_state=hidden_states,
             past_key_values=past_key_values if use_cache else None,
             hidden_states=all_hidden_states,

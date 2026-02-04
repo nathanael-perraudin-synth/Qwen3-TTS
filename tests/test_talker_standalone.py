@@ -2,9 +2,12 @@
 import torch
 import pytest
 from qwen_tts.core.models.modeling_qwen3_tts import Qwen3TTSTalkerModel
-from qwen_tts.core.models.configuration_qwen3_tts import Qwen3TTSTalkerConfig
-from qwen_tts.core.models.standalone_talker import StandaloneTalkerModel
-from qwen_tts.core.models.standalone_config import StandaloneTalkerConfig
+from qwen_tts.core.configs import (
+    Qwen3TTSTalkerConfig,
+    TalkerConfig,
+    to_standalone_talker_config,
+)
+from qwen_tts.core.models.standalone_talker import BigTransformer
 
 
 @pytest.fixture
@@ -40,36 +43,9 @@ def original_config():
 
 
 @pytest.fixture
-def standalone_config():
-    """Create standalone talker config."""
-    return StandaloneTalkerConfig(
-        vocab_size=3072,
-        hidden_size=256,
-        intermediate_size=512,
-        num_hidden_layers=2,
-        num_attention_heads=4,
-        num_key_value_heads=2,
-        head_dim=64,
-        hidden_act="silu",
-        max_position_embeddings=1024,
-        initializer_range=0.02,
-        rms_norm_eps=1e-6,
-        use_cache=True,
-        rope_theta=10000.0,
-        rope_scaling={
-            "rope_type": "default",
-            "mrope_section": [11, 11, 10],
-            "interleaved": False,
-        },
-        attention_bias=False,
-        use_sliding_window=False,
-        sliding_window=None,
-        attention_dropout=0.0,
-        num_code_groups=4,
-        text_hidden_size=256,
-        text_vocab_size=1000,
-        pad_token_id=0,
-    )
+def standalone_config(original_config):
+    """Create standalone talker config from original."""
+    return to_standalone_talker_config(original_config)
 
 
 @pytest.fixture
@@ -84,7 +60,7 @@ def original_model(original_config, device):
 @pytest.fixture
 def standalone_model(standalone_config, device):
     """Create standalone talker model."""
-    model = StandaloneTalkerModel(standalone_config)
+    model = BigTransformer(standalone_config)
     model = model.to(device)
     model.eval()
     return model

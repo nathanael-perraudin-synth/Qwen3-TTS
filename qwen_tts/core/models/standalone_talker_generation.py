@@ -4,9 +4,9 @@ from torch import nn
 from typing import Optional, Tuple, Dict, Any, List
 from dataclasses import dataclass
 
-from .standalone_talker import StandaloneTalkerModel, StandaloneResizeMLP
-from .standalone_config import StandaloneTalkerConfig
-from .standalone_utils import ModelOutput, can_return_tuple, DynamicCache
+from .standalone_talker import BigTransformer, StandaloneResizeMLP
+from ..configs.standalone_config import TalkerConfig
+from .standalone_utils import TransformerOutput, can_return_tuple, DynamicCache
 from .standalone_code_predictor_generation import StandaloneCodePredictorForConditionalGeneration
 from .standalone_generation import sample_top_k_top_p, apply_repetition_penalty
 
@@ -28,10 +28,10 @@ class TalkerOutputWithPast:
 class StandaloneTalkerForConditionalGeneration(nn.Module):
     """Standalone talker for conditional generation."""
     
-    def __init__(self, config: StandaloneTalkerConfig):
+    def __init__(self, config: TalkerConfig):
         super().__init__()
         self.config = config
-        self.model = StandaloneTalkerModel(config)
+        self.model = BigTransformer(config)
         self.vocab_size = config.vocab_size
         self.text_projection = StandaloneResizeMLP(
             config.text_hidden_size, config.text_hidden_size, config.hidden_size, config.hidden_act, bias=True
@@ -39,14 +39,34 @@ class StandaloneTalkerForConditionalGeneration(nn.Module):
         self.codec_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         
         # Create code predictor config from talker config
-        from .standalone_config import StandaloneCodePredictorConfig
-        code_predictor_config = StandaloneCodePredictorConfig(
-            vocab_size=config.vocab_size,
-            hidden_size=getattr(config, 'code_predictor_hidden_size', config.hidden_size),
-            intermediate_size=getattr(config, 'code_predictor_intermediate_size', config.intermediate_size),
-            num_hidden_layers=getattr(config, 'code_predictor_num_layers', config.num_hidden_layers),
-            num_attention_heads=getattr(config, 'code_predictor_num_heads', config.num_attention_heads),
-            num_key_value_heads=getattr(config, 'code_predictor_num_kv_heads', config.num_key_value_heads),
+        from ..configs.standalone_config import CodePredictorConfig
+        # Use code predictor vocab_size if available, otherwise fall back to talker vocab_size
+        code_predictor_vocab_size = getattr(config, 'code_predictor_vocab_size', None)
+        if code_predictor_vocab_size is None:
+            code_predictor_vocab_size = config.vocab_size
+        code_predictor_hidden_size = getattr(config, 'code_predictor_hidden_size', None)
+        if code_predictor_hidden_size is None:
+            code_predictor_hidden_size = config.hidden_size
+        code_predictor_intermediate_size = getattr(config, 'code_predictor_intermediate_size', None)
+        if code_predictor_intermediate_size is None:
+            code_predictor_intermediate_size = config.intermediate_size
+        code_predictor_num_layers = getattr(config, 'code_predictor_num_layers', None)
+        if code_predictor_num_layers is None:
+            code_predictor_num_layers = config.num_hidden_layers
+        code_predictor_num_heads = getattr(config, 'code_predictor_num_heads', None)
+        if code_predictor_num_heads is None:
+            code_predictor_num_heads = config.num_attention_heads
+        code_predictor_num_kv_heads = getattr(config, 'code_predictor_num_kv_heads', None)
+        if code_predictor_num_kv_heads is None:
+            code_predictor_num_kv_heads = config.num_key_value_heads
+        
+        code_predictor_config = CodePredictorConfig(
+            vocab_size=code_predictor_vocab_size,
+            hidden_size=code_predictor_hidden_size,
+            intermediate_size=code_predictor_intermediate_size,
+            num_hidden_layers=code_predictor_num_layers,
+            num_attention_heads=code_predictor_num_heads,
+            num_key_value_heads=code_predictor_num_kv_heads,
             head_dim=config.head_dim,
             hidden_act=config.hidden_act,
             max_position_embeddings=config.max_position_embeddings,
@@ -55,7 +75,6 @@ class StandaloneTalkerForConditionalGeneration(nn.Module):
         )
         self.code_predictor = StandaloneCodePredictorForConditionalGeneration(
             config=code_predictor_config,
-            talker_config=config,
             embedding_dim=config.hidden_size,
         )
         self.rope_deltas = None

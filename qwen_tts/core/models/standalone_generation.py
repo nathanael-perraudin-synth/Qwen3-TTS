@@ -4,7 +4,7 @@ from torch import nn
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 
-from .standalone_utils import ModelOutput, DynamicCache
+from .standalone_utils import TransformerOutput, DynamicCache
 
 
 @dataclass

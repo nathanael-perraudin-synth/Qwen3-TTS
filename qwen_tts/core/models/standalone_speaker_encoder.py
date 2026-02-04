@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .standalone_config import StandaloneSpeakerEncoderConfig
+from ..configs.standalone_config import SpeakerEncoderConfig
 
 
 class TimeDelayNetBlock(nn.Module):
@@ -232,7 +232,7 @@ class StandaloneSpeakerEncoder(torch.nn.Module):
     TDNN Based Speaker Verification" (https://huggingface.co/papers/2005.07143).
     """
 
-    def __init__(self, config: StandaloneSpeakerEncoderConfig):
+    def __init__(self, config: SpeakerEncoderConfig):
         super().__init__()
         if len(config.enc_channels) != len(config.enc_kernel_sizes) or len(config.enc_channels) != len(
             config.enc_dilations

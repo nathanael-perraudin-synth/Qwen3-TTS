@@ -2,9 +2,12 @@
 import torch
 import pytest
 from qwen_tts.core.models.modeling_qwen3_tts import Qwen3TTSSpeakerEncoder
-from qwen_tts.core.models.configuration_qwen3_tts import Qwen3TTSSpeakerEncoderConfig
+from qwen_tts.core.configs import (
+    Qwen3TTSSpeakerEncoderConfig,
+    SpeakerEncoderConfig,
+    to_speaker_encoder_config,
+)
 from qwen_tts.core.models.standalone_speaker_encoder import StandaloneSpeakerEncoder
-from qwen_tts.core.models.standalone_config import StandaloneSpeakerEncoderConfig
 
 
 @pytest.fixture
@@ -24,19 +27,9 @@ def original_config():
 
 
 @pytest.fixture
-def standalone_config():
-    """Create standalone speaker encoder config."""
-    return StandaloneSpeakerEncoderConfig(
-        mel_dim=128,
-        enc_dim=1024,
-        enc_channels=[512, 512, 512, 512, 1536],
-        enc_kernel_sizes=[5, 3, 3, 3, 1],
-        enc_dilations=[1, 2, 3, 4, 1],
-        enc_attention_channels=128,
-        enc_res2net_scale=8,
-        enc_se_channels=128,
-        sample_rate=24000,
-    )
+def standalone_config(original_config):
+    """Create standalone speaker encoder config from original."""
+    return to_speaker_encoder_config(original_config)
 
 
 @pytest.fixture

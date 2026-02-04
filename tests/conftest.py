@@ -1,7 +1,7 @@
 """Pytest configuration and fixtures."""
 import torch
 import pytest
-
+import numpy as np
 
 @pytest.fixture
 def device():
@@ -12,5 +12,4 @@ def device():
 @pytest.fixture
 def seed():
     """Set random seed for reproducibility."""
-    torch.manual_seed(42)
     return 42

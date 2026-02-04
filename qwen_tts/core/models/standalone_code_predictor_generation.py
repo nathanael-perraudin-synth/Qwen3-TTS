@@ -5,8 +5,8 @@ from typing import Optional, Tuple, Dict, Any
 from dataclasses import dataclass
 
 from .standalone_code_predictor import StandaloneCodePredictorModel
-from .standalone_config import StandaloneCodePredictorConfig
-from .standalone_utils import ModelOutput, can_return_tuple
+from ..configs.standalone_config import CodePredictorConfig
+from .standalone_utils import TransformerOutput, can_return_tuple
 from .standalone_generation import generate, sample_top_k_top_p, apply_repetition_penalty
 
 
@@ -26,21 +26,19 @@ class StandaloneCodePredictorForConditionalGeneration(nn.Module):
     
     def __init__(
         self,
-        config: StandaloneCodePredictorConfig,
-        talker_config: Any,  # StandaloneTalkerConfig
+        config: CodePredictorConfig,
         embedding_dim: int,
     ):
         super().__init__()
         self.config = config
-        self.talker_config = talker_config
         self.model = StandaloneCodePredictorModel(config, embedding_dim)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.ModuleList(
             [nn.Linear(config.hidden_size, config.vocab_size, bias=False) for _ in range(config.num_code_groups - 1)]
         )
         
-        if config.hidden_size != talker_config.hidden_size:
-            self.small_to_mtp_projection = nn.Linear(talker_config.hidden_size, config.hidden_size, bias=True)
+        if config.hidden_size != embedding_dim:
+            self.small_to_mtp_projection = nn.Linear(embedding_dim, config.hidden_size, bias=True)
         else:
             self.small_to_mtp_projection = nn.Identity()
     
@@ -166,6 +164,7 @@ class StandaloneCodePredictorForConditionalGeneration(nn.Module):
         generation_step = 0
         
         # Prefill stage - process the initial inputs_embeds
+        prefill_last_hidden = None  # used for first token logits without re-running model
         if inputs_embeds.shape[1] > 1:
             # This is the prefill stage
             current_embeds = self.small_to_mtp_projection(inputs_embeds)
@@ -175,9 +174,10 @@ class StandaloneCodePredictorForConditionalGeneration(nn.Module):
                 output_hidden_states=output_hidden_states,
             )
             past_key_values = outputs.past_key_values
+            # Save last hidden state for first token: original model uses prefill logits, does not re-run last token
+            prefill_last_hidden = outputs.last_hidden_state[:, -1:, :]  # (batch, 1, hidden)
             if output_hidden_states:
                 hidden_states_list.append(outputs.hidden_states)
-            # generation_step starts from the number of code groups - 1 (since we already have the first)
             generation_step = inputs_embeds.shape[1] - 2
         else:
             # Generation stage - single token
@@ -189,25 +189,23 @@ class StandaloneCodePredictorForConditionalGeneration(nn.Module):
                 break
             
             with torch.no_grad():
-                # Forward pass
-                # Use only the last token if we have multiple, otherwise use all
-                if current_embeds.shape[1] > 1:
-                    step_embeds = current_embeds[:, -1:, :]
+                # First token after prefill: use prefill last hidden state (align with transformers: no extra forward)
+                if prefill_last_hidden is not None:
+                    hidden_states = prefill_last_hidden
+                    prefill_last_hidden = None
                 else:
-                    step_embeds = current_embeds
-                
-                outputs = self.model(
-                    inputs_embeds=step_embeds,
-                    use_cache=True,
-                    past_key_values=past_key_values,
-                    output_hidden_states=output_hidden_states,
-                )
-                
-                hidden_states = outputs.last_hidden_state
-                past_key_values = outputs.past_key_values
-                
-                if output_hidden_states:
-                    hidden_states_list.append(outputs.hidden_states)
+                    # Forward pass: one new token with cache
+                    step_embeds = current_embeds[:, -1:, :] if current_embeds.shape[1] > 1 else current_embeds
+                    outputs = self.model(
+                        inputs_embeds=step_embeds,
+                        use_cache=True,
+                        past_key_values=past_key_values,
+                        output_hidden_states=output_hidden_states,
+                    )
+                    hidden_states = outputs.last_hidden_state
+                    past_key_values = outputs.past_key_values
+                    if output_hidden_states:
+                        hidden_states_list.append(outputs.hidden_states)
                 
                 # Get logits for current generation step
                 logits = self.lm_head[generation_step](hidden_states[:, -1, :])  # (batch, vocab)
@@ -245,9 +243,10 @@ class StandaloneCodePredictorForConditionalGeneration(nn.Module):
                     if all_eos:
                         break
                 
-                # Get embeddings for next iteration
+                # Get embeddings for next iteration (project like original forward)
                 if generation_step + 1 < len(self.model.get_input_embeddings()):
                     next_embeds = self.model.get_input_embeddings()[generation_step](next_tokens.unsqueeze(1))
+                    next_embeds = self.small_to_mtp_projection(next_embeds)
                     current_embeds = next_embeds
                     generation_step += 1
                 else:

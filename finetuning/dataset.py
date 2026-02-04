@@ -18,7 +18,7 @@ from typing import Any, List, Tuple, Union
 import librosa
 import numpy as np
 import torch
-from qwen_tts.core.models.configuration_qwen3_tts import Qwen3TTSConfig
+from qwen_tts.core.configs import Qwen3TTSConfig
 from qwen_tts.core.models.modeling_qwen3_tts import mel_spectrogram
 from torch.utils.data import Dataset
 

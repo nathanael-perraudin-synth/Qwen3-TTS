@@ -4,8 +4,8 @@ from typing import Optional, List, Dict, Any
 
 
 @dataclass
-class StandaloneSpeakerEncoderConfig:
-    """Configuration for standalone speaker encoder."""
+class SpeakerEncoderConfig:
+    """Configuration for speaker encoder."""
     mel_dim: int = 128
     enc_dim: int = 1024
     enc_channels: List[int] = None
@@ -26,7 +26,7 @@ class StandaloneSpeakerEncoderConfig:
 
 
 @dataclass
-class StandaloneCodePredictorConfig:
+class CodePredictorConfig:
     """Configuration for standalone code predictor model."""
     vocab_size: int = 2048
     hidden_size: int = 1024
@@ -73,7 +73,7 @@ class StandaloneCodePredictorConfig:
 
 
 @dataclass
-class StandaloneTalkerConfig:
+class TalkerConfig:
     """Configuration for standalone talker model."""
     vocab_size: int = 3072
     hidden_size: int = 1024
@@ -110,6 +110,13 @@ class StandaloneTalkerConfig:
     output_attentions: bool = False
     output_hidden_states: bool = False
     _attn_implementation: str = "eager"  # Use eager attention (no flash attention)
+    # Code predictor config fields (optional, will be set from original model if available)
+    code_predictor_vocab_size: Optional[int] = None
+    code_predictor_hidden_size: Optional[int] = None
+    code_predictor_intermediate_size: Optional[int] = None
+    code_predictor_num_layers: Optional[int] = None
+    code_predictor_num_heads: Optional[int] = None
+    code_predictor_num_kv_heads: Optional[int] = None
 
     def __post_init__(self):
         if self.head_dim is None:

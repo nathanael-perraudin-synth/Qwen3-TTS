@@ -132,9 +132,9 @@ def main():
     # 3. Load weights into standalone models
     # 4. Use standalone models for inference
     
-    from qwen_tts import Qwen3TTSModel
-    
-    model = Qwen3TTSModel.from_pretrained(
+    from qwen_tts.inference.standalone_qwen3_tts_model import StandaloneQwen3TTSModel
+
+    model = StandaloneQwen3TTSModel.from_pretrained(
         args.checkpoint,
         device_map=device,
         dtype=dtype,
@@ -158,13 +158,6 @@ def main():
     print(f"Saving output to {args.output}...")
     sf.write(args.output, wavs[0], sr)
     print("Done!")
-    print("\n" + "=" * 60)
-    print("To use fully standalone models:")
-    print("  1. Implement weight loading from pretrained checkpoints")
-    print("  2. Create StandaloneQwen3TTSForConditionalGeneration instances")
-    print("  3. Copy weights from original models to standalone models")
-    print("  4. Use standalone models for inference")
-    print("=" * 60)
 
 
 if __name__ == "__main__":

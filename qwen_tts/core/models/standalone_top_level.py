@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any, Tuple
 
 from .standalone_talker_generation import StandaloneTalkerForConditionalGeneration
 from .standalone_speaker_encoder import StandaloneSpeakerEncoder
-from .standalone_config import StandaloneTalkerConfig, StandaloneSpeakerEncoderConfig
+from ..configs.standalone_config import TalkerConfig, SpeakerEncoderConfig
 
 
 class StandaloneQwen3TTSForConditionalGeneration(nn.Module):
@@ -13,8 +13,8 @@ class StandaloneQwen3TTSForConditionalGeneration(nn.Module):
     
     def __init__(
         self,
-        talker_config: StandaloneTalkerConfig,
-        speaker_encoder_config: Optional[StandaloneSpeakerEncoderConfig] = None,
+        talker_config: TalkerConfig,
+        speaker_encoder_config: Optional[SpeakerEncoderConfig] = None,
         tts_model_type: str = "base",
         tokenizer_type: Optional[str] = None,
         tts_model_size: Optional[str] = None,
@@ -147,10 +147,25 @@ class StandaloneQwen3TTSForConditionalGeneration(nn.Module):
             codec_embed
         ], dim=1)
         
+        # compute lens
+        text_lens = text_embed.shape[1]
+        codec_lens = codec_embed.shape[1]
         if non_streaming_mode:
-            return text_embed + codec_embed, tts_pad_embed
+            icl_input_embed = text_embed + self.talker.get_input_embeddings()(
+                torch.tensor(
+                    [[self.config.talker_config.codec_pad_id]] * text_lens,
+                    device=self.talker.get_input_embeddings().weight.device,
+                    dtype=text_id.dtype,
+                )
+            )
+            icl_input_embed = torch.cat([icl_input_embed, codec_embed + tts_pad_embed], dim=1)
+            return icl_input_embed, tts_pad_embed
         else:
-            return text_embed + codec_embed, tts_pad_embed
+            if text_lens > codec_lens:
+                return text_embed[:, :codec_lens] + codec_embed, text_embed[:, codec_lens:]
+            else:
+                text_embed = torch.cat([text_embed] + [tts_pad_embed] * (codec_lens - text_lens), dim=1)
+                return text_embed + codec_embed, tts_pad_embed
     
     @torch.no_grad()
     def generate(
@@ -318,7 +333,7 @@ class StandaloneQwen3TTSForConditionalGeneration(nn.Module):
                     codec_input_embedding_1
                 ], dim=1)
             
-            # '<|im_start|>assistant\n我叫通义千问，是阿里云的开源大模型。<|im_end|>\n<|im_start|>assistant\n'
+            # '<|im_start|>assistant\nMy name is Tongyi Qianwen, Alibaba Cloud\'s open-source LLM.<|im_end|>\n<|im_start|>assistant\n'
             # <|im_start|>assistant\n
             _talker_input_embed_role = self.talker.text_projection(
                 self.talker.get_text_embeddings()(input_id[:, :3])
@@ -377,7 +392,7 @@ class StandaloneQwen3TTSForConditionalGeneration(nn.Module):
                     ], dim=1)
                     trailing_text_hidden = tts_pad_embed
                 else:
-                    # 叫通义千问，是阿里云的开源大模型。
+                    # Content: "Tongyi Qianwen, Alibaba Cloud's open-source LLM." (example prefix)
                     trailing_text_hidden = torch.cat((
                         self.talker.text_projection(
                             self.talker.get_text_embeddings()(input_id[:, 4:-5])

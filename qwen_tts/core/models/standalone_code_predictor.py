@@ -4,15 +4,17 @@ from torch import nn
 from torch.nn import functional as F
 from typing import Optional, Tuple, Dict, Any, List
 
-from .standalone_config import StandaloneCodePredictorConfig
+from qwen_tts.core.models.modeling_qwen3_tts import Qwen3TTSDecoderLayer
+
+from ..configs.standalone_config import CodePredictorConfig
 from .standalone_utils import (
-    ModelOutput, SimpleCache, DynamicCache,
-    create_causal_mask, create_sliding_window_causal_mask,
+    TransformerOutput, SimpleCache, DynamicCache,
     can_return_tuple, default_rope_init, dynamic_rope_update,
     repeat_kv, eager_attention_forward
 )
 
-
+from transformers.masking_utils import (create_causal_mask,
+                                        create_sliding_window_causal_mask)
 def rotate_half(x):
     """Rotates half the hidden dims of the input."""
     x1 = x[..., : x.shape[-1] // 2]
@@ -46,7 +48,7 @@ class StandaloneRMSNorm(nn.Module):
 
 class StandaloneRotaryEmbedding(nn.Module):
     """Standalone RoPE implementation."""
-    def __init__(self, config: StandaloneCodePredictorConfig, device=None):
+    def __init__(self, config: CodePredictorConfig, device=None):
         super().__init__()
         if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
             self.rope_type = config.rope_scaling.get("rope_type", "default")
@@ -93,7 +95,7 @@ def get_activation_fn(activation: str):
 
 class StandaloneMLP(nn.Module):
     """MLP layer for transformer."""
-    def __init__(self, config: StandaloneCodePredictorConfig, intermediate_size=None):
+    def __init__(self, config: CodePredictorConfig, intermediate_size=None):
         super().__init__()
         self.config = config
         self.hidden_size = config.hidden_size
@@ -110,7 +112,7 @@ class StandaloneMLP(nn.Module):
 
 class StandaloneAttention(nn.Module):
     """Multi-headed attention."""
-    def __init__(self, config: StandaloneCodePredictorConfig, layer_idx: int):
+    def __init__(self, config: CodePredictorConfig, layer_idx: int):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
@@ -178,7 +180,7 @@ class StandaloneAttention(nn.Module):
 
 class StandaloneDecoderLayer(nn.Module):
     """Decoder layer for transformer."""
-    def __init__(self, config: StandaloneCodePredictorConfig, layer_idx: int):
+    def __init__(self, config: CodePredictorConfig, layer_idx: int):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.self_attn = StandaloneAttention(config=config, layer_idx=layer_idx)
@@ -232,13 +234,13 @@ class StandaloneDecoderLayer(nn.Module):
 class StandaloneCodePredictorModel(nn.Module):
     """Standalone code predictor model without transformers."""
     
-    def __init__(self, config: StandaloneCodePredictorConfig, embedding_dim: int):
+    def __init__(self, config: CodePredictorConfig, embedding_dim: int):
         super().__init__()
         self.config = config
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
         self.layers = nn.ModuleList(
-            [StandaloneDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
+            [Qwen3TTSDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
         )
         self.norm = StandaloneRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = StandaloneRotaryEmbedding(config=config)
@@ -265,7 +267,7 @@ class StandaloneCodePredictorModel(nn.Module):
         cache_position=None,
         generation_steps=None,
         **kwargs,
-    ) -> ModelOutput:
+    ) -> TransformerOutput:
         if input_ids is not None:
             raise ValueError("`input_ids` is expected to be `None`")
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -305,6 +307,7 @@ class StandaloneCodePredictorModel(nn.Module):
         if self.has_sliding_layers:
             causal_mask_mapping["sliding_attention"] = create_sliding_window_causal_mask(**mask_kwargs)
 
+
         hidden_states = inputs_embeds
 
         # create position embeddings to be shared across the decoder layers
@@ -341,7 +344,7 @@ class StandaloneCodePredictorModel(nn.Module):
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
-        return ModelOutput(
+        return TransformerOutput(
             last_hidden_state=hidden_states,
             past_key_values=past_key_values if use_cache else None,
             hidden_states=all_hidden_states,

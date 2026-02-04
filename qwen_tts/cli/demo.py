@@ -454,37 +454,35 @@ def build_demo(tts: Qwen3TTSModel, ckpt: str, gen_kwargs_default: Dict[str, Any]
                         with gr.Column(scale=2):
                             gr.Markdown(
                                 """
-### Save Voice (保存音色)
-Upload reference audio and text, choose use x-vector only or not, then save a reusable voice prompt file.  
-(上传参考音频和参考文本，选择是否使用 use x-vector only 模式后保存为可复用的音色文件)
+### Save Voice
+Upload reference audio and text, choose use x-vector only or not, then save a reusable voice prompt file.
 """
                             )
-                            ref_audio_s = gr.Audio(label="Reference Audio (参考音频)", type="numpy")
+                            ref_audio_s = gr.Audio(label="Reference Audio", type="numpy")
                             ref_text_s = gr.Textbox(
-                                label="Reference Text (参考音频文本)",
+                                label="Reference Text",
                                 lines=2,
-                                placeholder="Required if not set use x-vector only (不勾选use x-vector only时必填).",
+                                placeholder="Required when use x-vector only is not checked.",
                             )
                             xvec_only_s = gr.Checkbox(
-                                label="Use x-vector only (仅用说话人向量，效果有限，但不用传入参考音频文本)",
+                                label="Use x-vector only (speaker vector only; limited quality, no reference text needed)",
                                 value=False,
                             )
-                            save_btn = gr.Button("Save Voice File (保存音色文件)", variant="primary")
-                            prompt_file_out = gr.File(label="Voice File (音色文件)")
+                            save_btn = gr.Button("Save Voice File", variant="primary")
+                            prompt_file_out = gr.File(label="Voice File")
 
                         with gr.Column(scale=2):
                             gr.Markdown(
                                 """
-### Load Voice & Generate (加载音色并合成)
-Upload a previously saved voice file, then synthesize new text.  
-(上传已保存提示文件后，输入新文本进行合成)
+### Load Voice & Generate
+Upload a previously saved voice file, then synthesize new text.
 """
                             )
-                            prompt_file_in = gr.File(label="Upload Prompt File (上传提示文件)")
+                            prompt_file_in = gr.File(label="Upload Prompt File")
                             text_in2 = gr.Textbox(
-                                label="Target Text (待合成文本)",
+                                label="Target Text",
                                 lines=4,
-                                placeholder="Enter text to synthesize (输入要合成的文本).",
+                                placeholder="Enter text to synthesize.",
                             )
                             lang_in2 = gr.Dropdown(
                                 label="Language (语种)",
@@ -583,9 +581,8 @@ Upload a previously saved voice file, then synthesize new text.
 
         gr.Markdown(
             """
-**Disclaimer (免责声明)**  
+**Disclaimer**  
 - The audio is automatically generated/synthesized by an AI model solely to demonstrate the model’s capabilities; it may be inaccurate or inappropriate, does not represent the views of the developer/operator, and does not constitute professional advice. You are solely responsible for evaluating, using, distributing, or relying on this audio; to the maximum extent permitted by applicable law, the developer/operator disclaims liability for any direct, indirect, incidental, or consequential damages arising from the use of or inability to use the audio, except where liability cannot be excluded by law. Do not use this service to intentionally generate or replicate unlawful, harmful, defamatory, fraudulent, deepfake, or privacy/publicity/copyright/trademark‑infringing content; if a user prompts, supplies materials, or otherwise facilitates any illegal or infringing conduct, the user bears all legal consequences and the developer/operator is not responsible.
-- 音频由人工智能模型自动生成/合成，仅用于体验与展示模型效果，可能存在不准确或不当之处；其内容不代表开发者/运营方立场，亦不构成任何专业建议。用户应自行评估并承担使用、传播或依赖该音频所产生的一切风险与责任；在适用法律允许的最大范围内，开发者/运营方不对因使用或无法使用本音频造成的任何直接、间接、附带或后果性损失承担责任（法律另有强制规定的除外）。严禁利用本服务故意引导生成或复制违法、有害、诽谤、欺诈、深度伪造、侵犯隐私/肖像/著作权/商标等内容；如用户通过提示词、素材或其他方式实施或促成任何违法或侵权行为，相关法律后果由用户自行承担，与开发者/运营方无关。
 """
         )
 
