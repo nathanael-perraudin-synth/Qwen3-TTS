@@ -46,6 +46,14 @@ class StandaloneTalkerRotaryEmbedding(nn.Module):
         self.register_buffer("inv_freq", inv_freq, persistent=False)
         self.original_inv_freq = self.inv_freq
 
+    def reinit_from_config(self, device=None):
+        """Re-initialize inv_freq from config (e.g. after loading state_dict from a model with different head_dim)."""
+        if device is None and hasattr(self, "inv_freq"):
+            device = self.inv_freq.device
+        inv_freq, self.attention_scaling = default_rope_init(self.config, device)
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.original_inv_freq = self.inv_freq
+
     @torch.no_grad()
     @dynamic_rope_update
     def forward(self, x, position_ids):

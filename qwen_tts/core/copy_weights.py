@@ -29,6 +29,14 @@ def copy_talker_weights(original_talker, target_talker):
         target_talker.model.load_state_dict(
             original_talker.model.state_dict(), strict=True
         )
+        # Re-initialize rotary embedding from target config so cos/sin head_dim matches
+        # the decoder layers (state_dict may have copied different head_dim inv_freq).
+        if hasattr(target_talker.model, "rotary_emb") and hasattr(
+            target_talker.model.rotary_emb, "reinit_from_config"
+        ):
+            target_talker.model.rotary_emb.reinit_from_config(
+                device=next(target_talker.model.parameters()).device
+            )
         # Copy text projection
         target_talker.text_projection.load_state_dict(
             original_talker.text_projection.state_dict(), strict=True
