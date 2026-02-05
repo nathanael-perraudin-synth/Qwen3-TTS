@@ -130,7 +130,14 @@ class TestE2EGeneration:
         reason="prompt.wav not found"
     )
     def test_models_produce_similar_output(self, temp_output):
-        """Test that original and standalone models produce similar output with same seed."""
+        """Test that original and standalone models produce similar output with same seed.
+        
+        Note: Currently the models may produce slightly different outputs due to
+        implementation differences. This test verifies:
+        1. Both models produce valid audio
+        2. Audio durations are within a reasonable range of each other
+        3. Both models are deterministic (same seed = same output)
+        """
         # Generate with original model
         output_original = temp_output.replace(".wav", "_original.wav")
         result_original = self._run_test_script(output_path=output_original)
@@ -148,8 +155,87 @@ class TestE2EGeneration:
         # Basic validation
         assert sr_original == sr_standalone, "Sample rates should match"
         
+        # Both should produce valid, non-silent audio
+        assert len(data_original) > 0, "Original model produced empty audio"
+        assert len(data_standalone) > 0, "Standalone model produced empty audio"
+        assert np.abs(data_original).max() > 1e-6, "Original audio appears silent"
+        assert np.abs(data_standalone).max() > 1e-6, "Standalone audio appears silent"
+        
+        # Audio durations should be in the same ballpark (within 50% of each other)
+        # This is a sanity check - they should produce roughly similar length audio
+        # for the same text input
+        duration_original = len(data_original) / sr_original
+        duration_standalone = len(data_standalone) / sr_standalone
+        duration_ratio = max(duration_original, duration_standalone) / min(duration_original, duration_standalone)
+        assert duration_ratio < 1.5, (
+            f"Audio durations differ too much: original={duration_original:.2f}s, "
+            f"standalone={duration_standalone:.2f}s (ratio={duration_ratio:.2f})"
+        )
+        
         # Cleanup extra files
         for f in [output_original, output_standalone]:
+            if os.path.exists(f):
+                os.unlink(f)
+    
+    @pytest.mark.skipif(
+        not Path(__file__).parent.parent.joinpath("prompt.wav").exists(),
+        reason="prompt.wav not found"
+    )
+    def test_original_model_deterministic(self, temp_output):
+        """Test that the original model produces identical output with the same seed."""
+        output1 = temp_output.replace(".wav", "_run1.wav")
+        output2 = temp_output.replace(".wav", "_run2.wav")
+        
+        # Run twice with the same seed
+        result1 = self._run_test_script(output_path=output1)
+        result2 = self._run_test_script(output_path=output2)
+        
+        assert result1.returncode == 0, f"First run failed: {result1.stderr}"
+        assert result2.returncode == 0, f"Second run failed: {result2.stderr}"
+        
+        # Load both outputs
+        data1, sr1 = sf.read(output1)
+        data2, sr2 = sf.read(output2)
+        
+        # Should be identical
+        assert len(data1) == len(data2), (
+            f"Audio lengths should match: run1={len(data1)}, run2={len(data2)}"
+        )
+        assert np.allclose(data1, data2, atol=1e-6), "Audio should be identical with same seed"
+        
+        # Cleanup
+        for f in [output1, output2]:
+            if os.path.exists(f):
+                os.unlink(f)
+    
+    @pytest.mark.skipif(
+        not Path(__file__).parent.parent.joinpath("prompt.wav").exists(),
+        reason="prompt.wav not found"
+    )
+    def test_standalone_model_deterministic(self, temp_output):
+        """Test that the standalone model produces identical output with the same seed."""
+        output1 = temp_output.replace(".wav", "_run1.wav")
+        output2 = temp_output.replace(".wav", "_run2.wav")
+        
+        # Run twice with the same seed
+        result1 = self._run_test_script("--standalone", output_path=output1)
+        result2 = self._run_test_script("--standalone", output_path=output2)
+        
+        assert result1.returncode == 0, f"First run failed: {result1.stderr}"
+        assert result2.returncode == 0, f"Second run failed: {result2.stderr}"
+        
+        # Load both outputs
+        data1, sr1 = sf.read(output1)
+        data2, sr2 = sf.read(output2)
+        
+        # Should be identical
+        assert len(data1) == len(data2), (
+            f"Audio lengths should match: run1={len(data1)}, run2={len(data2)}"
+        )
+        assert np.allclose(data1, data2, atol=1e-6), "Audio should be identical with same seed"
+        
+        # Cleanup
+        for f in [output1, output2]:
             if os.path.exists(f):
                 os.unlink(f)
 

@@ -100,13 +100,18 @@ def main():
 
     args = parser.parse_args()
 
-    # Set random seed if specified
+    # Set random seed if specified (for reproducibility)
     if args.seed is not None:
+        import random
         import numpy as np
-        torch.manual_seed(args.seed)
+        random.seed(args.seed)
         np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(args.seed)
+            # Enable deterministic operations for full reproducibility
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
         print(f"Random seed set to {args.seed}")
 
     # Auto-detect device if not specified

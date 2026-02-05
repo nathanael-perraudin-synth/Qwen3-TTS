@@ -28,9 +28,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
-# TODO: Remove transformers dependency in the future
-from transformers.configuration_utils import PretrainedConfig
-
 logger = logging.getLogger(__name__)
 
 # Type variable for config classes
