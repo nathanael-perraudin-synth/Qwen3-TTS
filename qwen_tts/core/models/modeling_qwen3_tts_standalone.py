@@ -37,8 +37,9 @@ from transformers.modeling_outputs import (BaseModelOutputWithPast,
                                            CausalLMOutputWithPast, ModelOutput)
 from transformers.modeling_rope_utils import (ROPE_INIT_FUNCTIONS,
                                               dynamic_rope_update)
-from transformers.modeling_utils import (ALL_ATTENTION_FUNCTIONS,
-                                         PreTrainedModel)
+from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
+
+from .base_model_standalone import StandalonePreTrainedModel
 from transformers.processing_utils import Unpack
 from transformers.utils import can_return_tuple, logging
 from transformers.utils.hub import cached_file
@@ -50,6 +51,28 @@ from .configuration_qwen3_tts_standalone import (Qwen3TTSConfigStandalone,
                                       Qwen3TTSTalkerConfigStandalone)
 
 logger = logging.get_logger(__name__)
+
+
+def _default_rope_init_fn(config, device=None):
+    """
+    Default RoPE initialization function for standard rotary embeddings.
+    
+    This is used when rope_scaling is None or rope_type is "default".
+    """
+    base = config.rope_theta
+    dim = config.head_dim
+    
+    # Compute inverse frequencies
+    inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim))
+    
+    # No attention scaling for default RoPE
+    attention_scaling = 1.0
+    
+    return inv_freq, attention_scaling
+
+
+# Extend ROPE_INIT_FUNCTIONS with our default implementation
+ROPE_INIT_FUNCTIONS_EXTENDED = {**ROPE_INIT_FUNCTIONS, "default": _default_rope_init_fn}
 
 
 def download_weights_from_hf_specific(
@@ -464,7 +487,9 @@ def mel_spectrogram(
     return mel_spec
 
 
-class Qwen3TTSPreTrainedModelStandalone(PreTrainedModel):
+class Qwen3TTSPreTrainedModelStandalone(StandalonePreTrainedModel):
+    """Base class for all Qwen3TTS standalone models."""
+    
     config_class = Qwen3TTSConfigStandalone
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
@@ -496,7 +521,9 @@ class Qwen3TTSPreTrainedModelStandalone(PreTrainedModel):
                 module.bias.data.zero_()
 
 
-class Qwen3TTSTalkerTextPreTrainedModelStandalone(PreTrainedModel):
+class Qwen3TTSTalkerTextPreTrainedModelStandalone(StandalonePreTrainedModel):
+    """Base class for Talker text models."""
+    
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
     _no_split_modules = []
@@ -510,7 +537,7 @@ class Qwen3TTSTalkerTextPreTrainedModelStandalone(PreTrainedModel):
     _supports_attention_backend = True
 
     def _init_weights(self, module):
-        std = self.config.initializer_range
+        std = getattr(self.config, "initializer_range", 0.02)
         if isinstance(module, nn.Linear):
             module.weight.data.normal_(mean=0.0, std=std)
             if module.bias is not None:
@@ -535,7 +562,7 @@ class Qwen3TTSTalkerRotaryEmbeddingStandalone(nn.Module):
         self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        self.rope_init_fn = ROPE_INIT_FUNCTIONS_EXTENDED[self.rope_type]
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -570,7 +597,7 @@ class Qwen3TTSRotaryEmbeddingStandalone(nn.Module):
         self.original_max_seq_len = config.max_position_embeddings
 
         self.config = config
-        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        self.rope_init_fn = ROPE_INIT_FUNCTIONS_EXTENDED[self.rope_type]
 
         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -1176,6 +1203,66 @@ class Qwen3TTSTalkerCodePredictorModelStandaloneForConditionalGenerationStandalo
         # Initialize weights and apply final processing
         self.post_init()
 
+    def prepare_inputs_for_generation(
+        self,
+        input_ids,
+        past_key_values=None,
+        attention_mask=None,
+        inputs_embeds=None,
+        cache_position=None,
+        position_ids=None,
+        use_cache=True,
+        generation_steps=None,
+        **kwargs,
+    ):
+        """
+        Prepare inputs for generation, passing through inputs_embeds and generation_steps.
+        
+        This follows the pattern of transformers' default implementation:
+        1. Handles cache-dependent input preparation
+        2. Passes inputs_embeds on first call (for prefill)
+        3. Passes only the last input_id on subsequent calls
+        4. Forwards all kwargs to the model
+        """
+        model_inputs = {}
+        
+        # Always set past_key_values (even if None)
+        model_inputs["past_key_values"] = past_key_values
+        
+        # Check if we have actual cached content (not just pre-initialized empty cache)
+        has_cached_content = (
+            past_key_values is not None
+            and hasattr(past_key_values, 'get_seq_length')
+            and past_key_values.get_seq_length() > 0
+        )
+        
+        # After prefill (when cache has content), use only the last generated token
+        if has_cached_content:
+            input_ids = input_ids[:, -1:]
+            inputs_embeds = None  # Don't pass inputs_embeds after prefill
+        
+        # Set input_ids or inputs_embeds
+        if inputs_embeds is not None:
+            model_inputs["input_ids"] = None
+            model_inputs["inputs_embeds"] = inputs_embeds
+        else:
+            model_inputs["input_ids"] = input_ids
+            model_inputs["inputs_embeds"] = None
+        
+        # Standard parameters
+        model_inputs["use_cache"] = use_cache
+        model_inputs["attention_mask"] = attention_mask
+        model_inputs["position_ids"] = position_ids
+        model_inputs["cache_position"] = cache_position
+        model_inputs["generation_steps"] = generation_steps
+        
+        # Forward ALL remaining kwargs to the model (like transformers does)
+        for key, value in kwargs.items():
+            if key not in model_inputs:
+                model_inputs[key] = value
+        
+        return model_inputs
+
     def get_input_embeddings(self):
         return self.model.get_input_embeddings()
 
@@ -1278,7 +1365,10 @@ class Qwen3TTSTalkerCodePredictorModelStandaloneForConditionalGenerationStandalo
             generation_steps = inputs_embeds.shape[1] - 2  # hidden & layer 0
         # Generation stage
         else:
-            inputs_embeds = self.model.get_input_embeddings()[generation_steps - 1](input_ids)
+            # Clamp embedding index to valid range (for the extra forward call issue)
+            num_embeddings = len(self.model.get_input_embeddings())
+            embed_idx = min(generation_steps - 1, num_embeddings - 1)
+            inputs_embeds = self.model.get_input_embeddings()[embed_idx](input_ids)
         inputs_embeds = self.small_to_mtp_projection(inputs_embeds)
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
@@ -1296,7 +1386,9 @@ class Qwen3TTSTalkerCodePredictorModelStandaloneForConditionalGenerationStandalo
         )
 
         hidden_states = outputs.last_hidden_state
-        logits = self.lm_head[generation_steps](hidden_states)
+        # Clamp lm_head index to valid range (for the extra forward call issue)
+        lm_head_idx = min(generation_steps, len(self.lm_head) - 1)
+        logits = self.lm_head[lm_head_idx](hidden_states)
 
         loss = None
         if labels is not None:
@@ -1590,6 +1682,84 @@ class Qwen3TTSTalkerForConditionalGenerationStandalone(Qwen3TTSTalkerTextPreTrai
 
         # TODO: hack, modular cannot inherit multiple classes
 
+    def prepare_inputs_for_generation(
+        self,
+        input_ids,
+        past_key_values=None,
+        attention_mask=None,
+        inputs_embeds=None,
+        cache_position=None,
+        position_ids=None,
+        use_cache=True,
+        past_hidden=None,
+        trailing_text_hidden=None,
+        tts_pad_embed=None,
+        generation_step=None,
+        subtalker_dosample=None,
+        subtalker_top_p=None,
+        subtalker_top_k=None,
+        subtalker_temperature=None,
+        **kwargs,
+    ):
+        """
+        Prepare inputs for generation, including model-specific kwargs.
+        
+        This follows the pattern of transformers' default implementation:
+        1. Handles cache-dependent input preparation
+        2. Passes inputs_embeds on first call (for prefill)
+        3. Passes only the last input_id on subsequent calls
+        4. Forwards all kwargs to the model
+        """
+        model_inputs = {}
+        
+        # Always set past_key_values (even if None)
+        model_inputs["past_key_values"] = past_key_values
+        
+        # Check if we have actual cached content (not just pre-initialized empty cache)
+        has_cached_content = (
+            past_key_values is not None
+            and hasattr(past_key_values, 'get_seq_length')
+            and past_key_values.get_seq_length() > 0
+        )
+        
+        # After prefill (when cache has content), use only the last generated token
+        if has_cached_content:
+            # Always take just the last token after prefill
+            input_ids = input_ids[:, -1:]
+            inputs_embeds = None  # Don't pass inputs_embeds after prefill
+        
+        # Set input_ids or inputs_embeds
+        if inputs_embeds is not None:
+            model_inputs["input_ids"] = None
+            model_inputs["inputs_embeds"] = inputs_embeds
+        else:
+            model_inputs["input_ids"] = input_ids
+            model_inputs["inputs_embeds"] = None
+        
+        # Standard parameters
+        model_inputs["use_cache"] = use_cache
+        # Don't pass these - let the model create its own based on cache
+        model_inputs["attention_mask"] = None
+        model_inputs["position_ids"] = None
+        model_inputs["cache_position"] = None
+        
+        # Model-specific kwargs for TTS generation
+        model_inputs["past_hidden"] = past_hidden
+        model_inputs["trailing_text_hidden"] = trailing_text_hidden
+        model_inputs["tts_pad_embed"] = tts_pad_embed
+        model_inputs["generation_step"] = generation_step
+        model_inputs["subtalker_dosample"] = subtalker_dosample
+        model_inputs["subtalker_top_p"] = subtalker_top_p
+        model_inputs["subtalker_top_k"] = subtalker_top_k
+        model_inputs["subtalker_temperature"] = subtalker_temperature
+        
+        # Forward ALL remaining kwargs to the model (like transformers does)
+        for key, value in kwargs.items():
+            if key not in model_inputs:
+                model_inputs[key] = value
+        
+        return model_inputs
+
     def get_input_embeddings(self):
         return self.model.get_input_embeddings()
 
@@ -1680,6 +1850,7 @@ class Qwen3TTSTalkerForConditionalGenerationStandalone(Qwen3TTSTalkerTextPreTrai
                 temperature=subtalker_temperature,
                 output_hidden_states=True,
                 return_dict_in_generate=True,
+                generation_steps=None,  # Ensure fresh start for each code predictor call
             )
             codec_ids = torch.cat((input_ids, predictor_result.sequences), dim=-1)
             codec_hiddens = torch.cat(
@@ -1862,77 +2033,71 @@ class Qwen3TTSForConditionalGenerationStandalone(Qwen3TTSPreTrainedModelStandalo
         *model_args,
         config=None,
         cache_dir=None,
-        ignore_mismatched_sizes=False,
         force_download=False,
         local_files_only=False,
         token=None,
         revision="main",
         use_safetensors=None,
-        weights_only=True,
+        device_map=None,
+        dtype=None,
         **kwargs,
     ):
-        # Hotfix to enable passing the correct attn implementation which is stored in the config but not in kwargs
-        requested_attn_implementation = kwargs.pop("attn_implementation", None)
-        if requested_attn_implementation is None and config and config._attn_implementation:
-            requested_attn_implementation = config._attn_implementation
-
+        """
+        Load pretrained Qwen3TTS model.
+        
+        This method loads the base model weights, speech tokenizer, and generation config.
+        """
+        # Load the base model using parent class
         model = super().from_pretrained(
             pretrained_model_name_or_path,
             *model_args,
             config=config,
             cache_dir=cache_dir,
-            ignore_mismatched_sizes=ignore_mismatched_sizes,
             force_download=force_download,
             local_files_only=local_files_only,
             token=token,
             revision=revision,
             use_safetensors=use_safetensors,
-            weights_only=weights_only,
-            attn_implementation=requested_attn_implementation,
+            device_map=device_map,
+            dtype=dtype,
             **kwargs,
         )
+        
+        # Download speech tokenizer if loading from Hub
         if not local_files_only and not os.path.isdir(pretrained_model_name_or_path):
-            download_cache_dir = kwargs.get("cache_dir", cache_dir)
-            download_revision = kwargs.get("revision", revision)
             download_weights_from_hf_specific(
                 pretrained_model_name_or_path,
-                cache_dir=download_cache_dir,
+                cache_dir=cache_dir,
                 allow_patterns=["speech_tokenizer/*"],
-                revision=download_revision,
+                revision=revision,
             )
+        
+        # Load speech tokenizer
         speech_tokenizer_path = cached_file(
             pretrained_model_name_or_path,
             "speech_tokenizer/config.json",
-            subfolder=kwargs.pop("subfolder", None),
-            cache_dir=kwargs.pop("cache_dir", None),
-            force_download=kwargs.pop("force_download", False),
-            proxies=kwargs.pop("proxies", None),
-            resume_download=kwargs.pop("resume_download", None),
-            local_files_only=kwargs.pop("local_files_only", False),
-            token=kwargs.pop("use_auth_token", None),
-            revision=kwargs.pop("revision", None),
+            cache_dir=cache_dir,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
         )
         if speech_tokenizer_path is None:
-            raise ValueError(f"""{pretrained_model_name_or_path}/{speech_tokenizer_path} not exists""")
+            raise ValueError(f"Speech tokenizer not found at {pretrained_model_name_or_path}/speech_tokenizer/")
+        
         speech_tokenizer_dir = os.path.dirname(speech_tokenizer_path)
-        speech_tokenizer = Qwen3TTSTokenizer.from_pretrained(
-            speech_tokenizer_dir,
-            *model_args,
-            **kwargs,
-        )
+        speech_tokenizer = Qwen3TTSTokenizer.from_pretrained(speech_tokenizer_dir)
         model.load_speech_tokenizer(speech_tokenizer)
 
+        # Load generation config
         generate_config_path = cached_file(
             pretrained_model_name_or_path,
             "generation_config.json",
-            subfolder=kwargs.pop("subfolder", None),
-            cache_dir=kwargs.pop("cache_dir", None),
-            force_download=kwargs.pop("force_download", False),
-            proxies=kwargs.pop("proxies", None),
-            resume_download=kwargs.pop("resume_download", None),
-            local_files_only=kwargs.pop("local_files_only", False),
-            token=kwargs.pop("use_auth_token", None),
-            revision=kwargs.pop("revision", None),
+            cache_dir=cache_dir,
+            force_download=force_download,
+            local_files_only=local_files_only,
+            token=token,
+            revision=revision,
         )
         with open(generate_config_path, "r", encoding="utf-8") as f:
             generate_config = json.load(f)

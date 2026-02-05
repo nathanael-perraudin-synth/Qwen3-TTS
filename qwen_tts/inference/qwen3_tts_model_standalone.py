@@ -144,9 +144,9 @@ class Qwen3TTSModelStandalone:
         )
         
         # Load processor directly (no AutoProcessor registration needed)
+        # Note: fix_mistral_regex is handled internally by transformers tokenizer
         processor = Qwen3TTSProcessorStandalone.from_pretrained(
             pretrained_model_name_or_path,
-            fix_mistral_regex=True,
         )
 
         generate_defaults = model.generate_config

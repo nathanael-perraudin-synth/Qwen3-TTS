@@ -131,8 +131,9 @@ class TestBaseConfig:
         
         # Check default values for compatibility attributes
         assert config._name_or_path == ""
-        assert config._attn_implementation is None
-        assert config._attn_implementation_internal is None
+        # _attn_implementation defaults to "sdpa" for transformers compatibility
+        assert config._attn_implementation == "sdpa"
+        assert config._attn_implementation_internal == "sdpa"
         assert config.output_hidden_states is False
         assert config.output_attentions is False
         assert config.return_dict is True

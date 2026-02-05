@@ -15,10 +15,9 @@
 """
 Configuration classes for Qwen3TTS standalone models.
 
-Note: Currently these classes still inherit from transformers.PretrainedConfig
-because the model classes inherit from transformers.PreTrainedModel which requires it.
-A truly transformers-free BaseConfig class is provided for future use when we
-fully remove the transformers dependency from both configs and models.
+These configuration classes are fully standalone and inherit from BaseConfig,
+which provides serialization, deserialization, and HuggingFace Hub loading
+without requiring the transformers library.
 """
 from __future__ import annotations
 
@@ -30,9 +29,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 # TODO: Remove transformers dependency in the future
-from transformers.configuration_utils import PretrainedConfig
-
-# TODO: Remove transformers dependency when model classes no longer inherit from PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
 
 logger = logging.getLogger(__name__)
@@ -134,8 +130,11 @@ class BaseConfig:
         """
         # PretrainedConfig compatibility attributes
         self._name_or_path = kwargs.pop("_name_or_path", "")
-        self._attn_implementation = kwargs.pop("_attn_implementation", None)
-        self._attn_implementation_internal = kwargs.pop("_attn_implementation_internal", None)
+        # Default to "sdpa" (scaled dot-product attention) if not specified
+        self._attn_implementation = kwargs.pop("_attn_implementation", "sdpa")
+        self._attn_implementation_internal = kwargs.pop("_attn_implementation_internal", "sdpa")
+        # Experts implementation (for MoE models, None for standard models)
+        self._experts_implementation = kwargs.pop("_experts_implementation", None)
         
         # Common config attributes (with defaults from PretrainedConfig)
         self.output_hidden_states = kwargs.pop("output_hidden_states", False)
@@ -162,6 +161,41 @@ class BaseConfig:
     def name_or_path(self, value: str):
         """Set the model name or path."""
         self._name_or_path = str(value)
+    
+    @property
+    def has_no_defaults_at_init(self) -> bool:
+        """Whether the config has no defaults at initialization (for generation params check)."""
+        return False
+    
+    def _get_generation_parameters(self) -> Dict[str, Any]:
+        """
+        Get generation parameters from the config.
+        
+        This method is used by GenerationMixin to check for generation-related
+        parameters in the config. For standalone models, we return an empty dict
+        as generation params should be in GenerationConfig, not the model config.
+        
+        Note: We explicitly return an empty dict to avoid false positives from
+        common config attributes like output_hidden_states, output_attentions, etc.
+        which are not meant to be generation parameters.
+        """
+        # Return empty dict - generation params should be in GenerationConfig
+        return {}
+    
+    def get_text_config(self, decoder: bool = False) -> "BaseConfig":
+        """
+        Get the text config for the model.
+        
+        This method is used by GenerationMixin for cache preparation.
+        For most models, this just returns self.
+        
+        Args:
+            decoder: Whether to get the decoder config (for encoder-decoder models).
+            
+        Returns:
+            The text configuration (usually self).
+        """
+        return self
     
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -334,7 +368,7 @@ class BaseConfig:
         return self.to_dict() == other.to_dict()
 
 
-class Qwen3TTSSpeakerEncoderConfigStandalone(PretrainedConfig):
+class Qwen3TTSSpeakerEncoderConfigStandalone(BaseConfig):
     r"""
     Configuration class for Qwen3TTS Speaker Encoder (ECAPA-TDNN based).
     
@@ -389,7 +423,7 @@ class Qwen3TTSSpeakerEncoderConfigStandalone(PretrainedConfig):
         self.sample_rate = sample_rate
 
 
-class Qwen3TTSTalkerCodePredictorConfigStandalone(PretrainedConfig):
+class Qwen3TTSTalkerCodePredictorConfigStandalone(BaseConfig):
     r"""
     Configuration class for the Qwen3TTS Talker Code Predictor model.
     
@@ -517,7 +551,7 @@ class Qwen3TTSTalkerCodePredictorConfigStandalone(PretrainedConfig):
         layer_type_validation(self.layer_types)
 
 
-class Qwen3TTSTalkerConfigStandalone(PretrainedConfig):
+class Qwen3TTSTalkerConfigStandalone(BaseConfig):
     r"""
     Configuration class for the Qwen3TTS Talker model.
     
@@ -675,7 +709,7 @@ class Qwen3TTSTalkerConfigStandalone(PretrainedConfig):
             self.code_predictor_config = Qwen3TTSTalkerCodePredictorConfigStandalone(**code_predictor_config)
 
 
-class Qwen3TTSConfigStandalone(PretrainedConfig):
+class Qwen3TTSConfigStandalone(BaseConfig):
     """
     Main configuration class for Qwen3TTS model.
     
