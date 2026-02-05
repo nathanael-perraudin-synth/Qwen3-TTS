@@ -29,7 +29,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .base_model_standalone import StandalonePreTrainedModel
-from ...inference.qwen3_tts_tokenizer import Qwen3TTSTokenizer
+from ...inference.qwen3_tts_tokenizer_standalone import Qwen3TTSTokenizerStandalone
 from .configuration_qwen3_tts_standalone import (Qwen3TTSConfigStandalone,
                                       Qwen3TTSSpeakerEncoderConfigStandalone,
                                       Qwen3TTSTalkerCodePredictorConfigStandalone,
@@ -2059,7 +2059,7 @@ class Qwen3TTSForConditionalGenerationStandalone(Qwen3TTSPreTrainedModelStandalo
             raise ValueError(f"Speech tokenizer not found at {pretrained_model_name_or_path}/speech_tokenizer/")
         
         speech_tokenizer_dir = os.path.dirname(speech_tokenizer_path)
-        speech_tokenizer = Qwen3TTSTokenizer.from_pretrained(speech_tokenizer_dir)
+        speech_tokenizer = Qwen3TTSTokenizerStandalone.from_pretrained(speech_tokenizer_dir)
         model.load_speech_tokenizer(speech_tokenizer)
 
         # Load generation config
