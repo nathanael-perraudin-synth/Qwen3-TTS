@@ -7,7 +7,7 @@ Tests for DecoderLayer and Attention equivalence.
 
 import pytest
 import torch
-from transformers.cache_utils import DynamicCache
+from transformers.cache_utils import DynamicCache as TransformersDynamicCache
 
 from tests.conftest import set_seed, copy_weights
 
@@ -23,6 +23,7 @@ from qwen_tts.core.models.modeling_qwen3_tts_standalone import (
     Qwen3TTSAttentionStandalone,
     Qwen3TTSDecoderLayerStandalone,
 )
+from qwen_tts.core.models.standalone import DynamicCache as StandaloneDynamicCache
 
 
 def _create_decoder_layer_config():
@@ -122,9 +123,9 @@ class TestDecoderLayerEquivalence:
         position_embeddings_prefill = rope(hidden_states_prefill, position_ids_prefill)
         cache_position_prefill = torch.arange(prefill_len)
         
-        # Initialize caches
-        cache_orig = DynamicCache()
-        cache_standalone = DynamicCache()
+        # Initialize caches - use transformers cache for original, standalone for standalone
+        cache_orig = TransformersDynamicCache()
+        cache_standalone = StandaloneDynamicCache()
         
         with torch.no_grad():
             output_orig_prefill = layer_orig(
@@ -222,8 +223,8 @@ class TestAttentionWithCaching:
         position_embeddings_prefill = rope(hidden_states_prefill, position_ids_prefill)
         cache_position_prefill = torch.arange(prefill_len)
         
-        cache_orig = DynamicCache()
-        cache_standalone = DynamicCache()
+        cache_orig = TransformersDynamicCache()
+        cache_standalone = StandaloneDynamicCache()
         
         with torch.no_grad():
             output_orig_prefill, _ = attn_orig(

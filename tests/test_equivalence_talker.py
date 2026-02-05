@@ -7,7 +7,7 @@ Tests for TalkerDecoderLayer and TalkerAttention equivalence with multimodal rop
 
 import pytest
 import torch
-from transformers.cache_utils import DynamicCache
+from transformers.cache_utils import DynamicCache as TransformersDynamicCache
 
 from tests.conftest import set_seed, copy_weights
 
@@ -23,6 +23,7 @@ from qwen_tts.core.models.modeling_qwen3_tts_standalone import (
     Qwen3TTSTalkerAttentionStandalone,
     Qwen3TTSTalkerDecoderLayerStandalone,
 )
+from qwen_tts.core.models.standalone import DynamicCache as StandaloneDynamicCache
 
 
 def _create_talker_config():
@@ -127,9 +128,9 @@ class TestTalkerDecoderLayerEquivalence:
         position_embeddings_prefill = rope(hidden_states_prefill, position_ids_prefill)
         cache_position_prefill = torch.arange(prefill_len)
         
-        # Initialize caches
-        cache_orig = DynamicCache()
-        cache_standalone = DynamicCache()
+        # Initialize caches - use transformers cache for original, standalone for standalone
+        cache_orig = TransformersDynamicCache()
+        cache_standalone = StandaloneDynamicCache()
         
         with torch.no_grad():
             output_orig_prefill = layer_orig(
@@ -228,8 +229,8 @@ class TestTalkerAttentionWithCaching:
         position_embeddings_prefill = rope(hidden_states_prefill, position_ids_prefill)
         cache_position_prefill = torch.arange(prefill_len)
         
-        cache_orig = DynamicCache()
-        cache_standalone = DynamicCache()
+        cache_orig = TransformersDynamicCache()
+        cache_standalone = StandaloneDynamicCache()
         
         with torch.no_grad():
             output_orig_prefill, _ = attn_orig(
@@ -307,9 +308,9 @@ class TestTalkerCacheConsistency:
         
         rope = Qwen3TTSTalkerRotaryEmbedding(config)
         
-        # Initialize caches
-        cache_orig = DynamicCache()
-        cache_standalone = DynamicCache()
+        # Initialize caches - use transformers cache for original, standalone for standalone
+        cache_orig = TransformersDynamicCache()
+        cache_standalone = StandaloneDynamicCache()
         
         # === PREFILL PHASE ===
         hidden_states_prefill = full_hidden_states[:, :prefill_len, :]

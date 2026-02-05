@@ -7,7 +7,7 @@ Tests for cache consistency between original and standalone models.
 
 import pytest
 import torch
-from transformers.cache_utils import DynamicCache
+from transformers.cache_utils import DynamicCache as TransformersDynamicCache
 
 from tests.conftest import set_seed, copy_weights
 
@@ -21,6 +21,7 @@ from qwen_tts.core.models.modeling_qwen3_tts import (
 from qwen_tts.core.models.modeling_qwen3_tts_standalone import (
     Qwen3TTSDecoderLayerStandalone,
 )
+from qwen_tts.core.models.standalone import DynamicCache as StandaloneDynamicCache
 
 
 class TestCacheConsistency:
@@ -67,9 +68,9 @@ class TestCacheConsistency:
         
         rope = Qwen3TTSRotaryEmbedding(config)
         
-        # Initialize caches
-        cache_orig = DynamicCache()
-        cache_standalone = DynamicCache()
+        # Initialize caches - use transformers cache for original, standalone for standalone
+        cache_orig = TransformersDynamicCache()
+        cache_standalone = StandaloneDynamicCache()
         
         # === PREFILL PHASE ===
         hidden_states_prefill = full_hidden_states[:, :prefill_len, :]
@@ -174,8 +175,9 @@ class TestCacheConsistency:
         
         rope = Qwen3TTSRotaryEmbedding(config)
         
-        cache_orig = DynamicCache()
-        cache_standalone = DynamicCache()
+        # Use transformers cache for original, standalone for standalone
+        cache_orig = TransformersDynamicCache()
+        cache_standalone = StandaloneDynamicCache()
         
         # Prefill
         hidden_prefill = hidden_states[:, :prefill_len, :]
