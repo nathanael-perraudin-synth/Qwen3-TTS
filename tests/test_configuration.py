@@ -125,6 +125,51 @@ class TestBaseConfig:
         assert config1 == config2
         assert config1 != config3
 
+    def test_pretrained_config_compatibility_attributes(self):
+        """Test that BaseConfig has PretrainedConfig compatibility attributes."""
+        config = BaseConfig(foo="bar")
+        
+        # Check default values for compatibility attributes
+        assert config._name_or_path == ""
+        assert config._attn_implementation is None
+        assert config._attn_implementation_internal is None
+        assert config.output_hidden_states is False
+        assert config.output_attentions is False
+        assert config.return_dict is True
+        assert config.is_encoder_decoder is False
+        assert config.is_decoder is False
+        assert config.pad_token_id is None
+        assert config.bos_token_id is None
+        assert config.eos_token_id is None
+
+    def test_name_or_path_property(self):
+        """Test the name_or_path property."""
+        config = BaseConfig()
+        
+        # Test getter
+        assert config.name_or_path == ""
+        
+        # Test setter
+        config.name_or_path = "some/path"
+        assert config.name_or_path == "some/path"
+        assert config._name_or_path == "some/path"
+
+    def test_from_pretrained_stores_path(self):
+        """Test that from_pretrained stores the path in _name_or_path."""
+        config = BaseConfig(foo="bar")
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config.save_pretrained(tmpdir)
+            loaded = BaseConfig.from_pretrained(tmpdir)
+            
+            # The path should be stored
+            assert loaded._name_or_path == tmpdir
+
+    def test_attribute_map_exists(self):
+        """Test that attribute_map class attribute exists."""
+        assert hasattr(BaseConfig, "attribute_map")
+        assert isinstance(BaseConfig.attribute_map, dict)
+
 
 class TestSpeakerEncoderConfig:
     """Test Qwen3TTSSpeakerEncoderConfigStandalone."""

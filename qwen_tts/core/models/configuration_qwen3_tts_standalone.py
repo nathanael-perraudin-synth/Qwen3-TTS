@@ -16,9 +16,9 @@
 Configuration classes for Qwen3TTS standalone models.
 
 Note: Currently these classes still inherit from transformers.PretrainedConfig
-for compatibility with the HuggingFace ecosystem. A truly transformers-free
-BaseConfig class is provided below for future use when we remove the
-transformers dependency.
+because the model classes inherit from transformers.PreTrainedModel which requires it.
+A truly transformers-free BaseConfig class is provided for future use when we
+fully remove the transformers dependency from both configs and models.
 """
 from __future__ import annotations
 
@@ -30,6 +30,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 # TODO: Remove transformers dependency in the future
+from transformers.configuration_utils import PretrainedConfig
+
+# TODO: Remove transformers dependency when model classes no longer inherit from PreTrainedModel
 from transformers.configuration_utils import PretrainedConfig
 
 logger = logging.getLogger(__name__)
@@ -100,13 +103,17 @@ class BaseConfig:
     """
     Base configuration class providing serialization/deserialization functionality.
     
-    This class replaces transformers.PretrainedConfig for standalone models,
-    providing essential features like:
+    This class is designed to eventually replace transformers.PretrainedConfig for 
+    standalone models, providing essential features like:
     - to_dict() / from_dict() conversion
     - JSON save/load functionality
     - Copy functionality
+    - Compatibility with HuggingFace Hub loading
     
     All configuration classes should inherit from this base class.
+    
+    Note: This class includes some attributes that mirror PretrainedConfig to ease
+    the transition away from transformers dependency.
     """
     
     # Configuration file name for saving/loading
@@ -115,6 +122,9 @@ class BaseConfig:
     # Model type identifier (should be overridden by subclasses)
     model_type: str = "base"
     
+    # Attribute map for renaming (PretrainedConfig compatibility)
+    attribute_map: Dict[str, str] = {}
+    
     def __init__(self, **kwargs):
         """
         Initialize base configuration.
@@ -122,9 +132,36 @@ class BaseConfig:
         Args:
             **kwargs: Additional keyword arguments stored as attributes.
         """
+        # PretrainedConfig compatibility attributes
+        self._name_or_path = kwargs.pop("_name_or_path", "")
+        self._attn_implementation = kwargs.pop("_attn_implementation", None)
+        self._attn_implementation_internal = kwargs.pop("_attn_implementation_internal", None)
+        
+        # Common config attributes (with defaults from PretrainedConfig)
+        self.output_hidden_states = kwargs.pop("output_hidden_states", False)
+        self.output_attentions = kwargs.pop("output_attentions", False)
+        self.return_dict = kwargs.pop("return_dict", True)
+        self.is_encoder_decoder = kwargs.pop("is_encoder_decoder", False)
+        self.is_decoder = kwargs.pop("is_decoder", False)
+        
+        # Token IDs
+        self.pad_token_id = kwargs.pop("pad_token_id", None)
+        self.bos_token_id = kwargs.pop("bos_token_id", None)
+        self.eos_token_id = kwargs.pop("eos_token_id", None)
+        
         # Store any additional kwargs as attributes
         for key, value in kwargs.items():
             setattr(self, key, value)
+    
+    @property
+    def name_or_path(self) -> str:
+        """Get the model name or path."""
+        return self._name_or_path
+    
+    @name_or_path.setter
+    def name_or_path(self, value: str):
+        """Set the model name or path."""
+        self._name_or_path = str(value)
     
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -207,13 +244,23 @@ class BaseConfig:
     def from_pretrained(
         cls: Type[T],
         pretrained_model_name_or_path: Union[str, Path],
+        cache_dir: Optional[Union[str, Path]] = None,
+        force_download: bool = False,
+        local_files_only: bool = False,
+        token: Optional[str] = None,
+        revision: str = "main",
         **kwargs
     ) -> T:
         """
-        Load configuration from a directory or file.
+        Load configuration from a local directory, file, or HuggingFace Hub.
         
         Args:
-            pretrained_model_name_or_path: Directory path or config file path.
+            pretrained_model_name_or_path: Local path or HuggingFace repo id.
+            cache_dir: Directory to cache downloaded files.
+            force_download: Force re-download even if cached.
+            local_files_only: Only use local files, don't download.
+            token: HuggingFace Hub token for private repos.
+            revision: Git revision (branch, tag, commit) to use.
             **kwargs: Additional keyword arguments to override loaded values.
             
         Returns:
@@ -221,16 +268,40 @@ class BaseConfig:
         """
         path = Path(pretrained_model_name_or_path)
         
+        # Check if it's a local path
         if path.is_dir():
             config_path = path / cls.CONFIG_NAME
-        else:
+        elif path.is_file():
             config_path = path
-        
-        if not config_path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {config_path}")
+        else:
+            # Try to download from HuggingFace Hub
+            try:
+                from huggingface_hub import hf_hub_download
+                config_path = hf_hub_download(
+                    repo_id=str(pretrained_model_name_or_path),
+                    filename=cls.CONFIG_NAME,
+                    cache_dir=cache_dir,
+                    force_download=force_download,
+                    local_files_only=local_files_only,
+                    token=token,
+                    revision=revision,
+                )
+            except ImportError:
+                raise ImportError(
+                    "huggingface_hub is required to download from HuggingFace Hub. "
+                    "Install it with: pip install huggingface_hub"
+                )
+            except Exception as e:
+                raise FileNotFoundError(
+                    f"Configuration file not found locally or on HuggingFace Hub: "
+                    f"{pretrained_model_name_or_path}. Error: {e}"
+                )
         
         with open(config_path, "r", encoding="utf-8") as f:
             config_dict = json.load(f)
+        
+        # Store the path in the config
+        config_dict["_name_or_path"] = str(pretrained_model_name_or_path)
         
         return cls.from_dict(config_dict, **kwargs)
     

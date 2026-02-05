@@ -15,6 +15,8 @@
 # limitations under the License.
 import base64
 import io
+import json
+import os
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -24,7 +26,7 @@ import librosa
 import numpy as np
 import soundfile as sf
 import torch
-from transformers import AutoConfig, AutoModel, AutoProcessor
+from huggingface_hub import hf_hub_download
 
 from ..core.models.configuration_qwen3_tts_standalone import Qwen3TTSConfigStandalone
 from ..core.models.modeling_qwen3_tts_standalone import Qwen3TTSForConditionalGenerationStandalone
@@ -82,42 +84,70 @@ class Qwen3TTSModelStandalone:
                 self.device = torch.device("cpu")
 
     @classmethod
+    def _load_config_from_path(cls, path: str) -> Qwen3TTSConfigStandalone:
+        """
+        Load configuration from a local path or HuggingFace Hub.
+        
+        Args:
+            path: Local directory path or HuggingFace repo id.
+            
+        Returns:
+            Qwen3TTSConfigStandalone instance.
+        """
+        if os.path.isdir(path):
+            config_path = os.path.join(path, "config.json")
+        elif os.path.isfile(path):
+            config_path = path
+        else:
+            # Download from HuggingFace Hub
+            config_path = hf_hub_download(repo_id=path, filename="config.json")
+        
+        with open(config_path, "r", encoding="utf-8") as f:
+            config_dict = json.load(f)
+        
+        return Qwen3TTSConfigStandalone.from_dict(config_dict)
+
+    @classmethod
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: str,
         **kwargs,
-    ) -> "Qwen3TTSModel":
+    ) -> "Qwen3TTSModelStandalone":
         """
-        Load a Qwen3 TTS model and its processor in HuggingFace `from_pretrained` style.
+        Load a Qwen3 TTS model and its processor.
 
         This method:
-          1) Loads config via AutoConfig (so your side can register model_type -> config/model).
-          2) Loads the model via AutoModel.from_pretrained(...), forwarding `kwargs` unchanged.
-          3) Loads the processor via AutoProcessor.from_pretrained(model_path).
-          4) Loads optional `generate_config.json` from the model directory/repo snapshot if present.
+          1) Loads config from the model directory or HuggingFace Hub.
+          2) Loads the model via Qwen3TTSForConditionalGenerationStandalone.from_pretrained().
+          3) Loads the processor via Qwen3TTSProcessorStandalone.from_pretrained().
+          4) Loads generation config from the model.
 
         Args:
             pretrained_model_name_or_path (str):
                 HuggingFace repo id or local directory of the model.
             **kwargs:
-                Forwarded as-is into `AutoModel.from_pretrained(...)`.
+                Forwarded as-is into model's `from_pretrained(...)`.
                 Typical examples: device_map="cuda:0", dtype=torch.bfloat16, attn_implementation="flash_attention_2".
 
         Returns:
-            Qwen3TTSModel:
+            Qwen3TTSModelStandalone:
                 Wrapper instance containing `model`, `processor`, and generation defaults.
         """
-        AutoConfig.register("qwen3_tts", Qwen3TTSConfigStandalone)
-        AutoModel.register(Qwen3TTSConfigStandalone, Qwen3TTSForConditionalGenerationStandalone)
-        AutoProcessor.register(Qwen3TTSConfigStandalone, Qwen3TTSProcessorStandalone)
-
-        model = AutoModel.from_pretrained(pretrained_model_name_or_path, **kwargs)
-        if not isinstance(model, Qwen3TTSForConditionalGenerationStandalone):
-            raise TypeError(
-                f"AutoModel returned {type(model)}, expected Qwen3TTSForConditionalGenerationStandalone. "
-            )
-
-        processor = AutoProcessor.from_pretrained(pretrained_model_name_or_path, fix_mistral_regex=True,)
+        # Load config directly (no AutoConfig registration needed)
+        config = cls._load_config_from_path(pretrained_model_name_or_path)
+        
+        # Load model directly (no AutoModel registration needed)
+        model = Qwen3TTSForConditionalGenerationStandalone.from_pretrained(
+            pretrained_model_name_or_path,
+            config=config,
+            **kwargs,
+        )
+        
+        # Load processor directly (no AutoProcessor registration needed)
+        processor = Qwen3TTSProcessorStandalone.from_pretrained(
+            pretrained_model_name_or_path,
+            fix_mistral_regex=True,
+        )
 
         generate_defaults = model.generate_config
         return cls(model=model, processor=processor, generate_defaults=generate_defaults)
