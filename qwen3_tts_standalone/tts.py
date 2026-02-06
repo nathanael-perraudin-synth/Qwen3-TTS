@@ -15,16 +15,15 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from .configuration_qwen3_tts_standalone import Qwen3TTSConfigStandalone
-from .speaker_encoder_standalone import (
+from .configuration import Qwen3TTSConfigStandalone
+from .speaker_encoder import (
     Qwen3TTSSpeakerEncoderStandalone,
     mel_spectrogram,
 )
-from .standalone import cached_file
-from .base_model_standalone import StandalonePreTrainedModel
-from .utils import download_weights_from_hf_specific
-from ...inference.qwen3_tts_tokenizer_standalone import Qwen3TTSTokenizerStandalone
-from .talker_standalone import Talker
+from .utils import cached_file, download_weights_from_hf
+from .base_model import StandalonePreTrainedModel
+from .tokenizer import Qwen3TTSSpeechTokenizer
+from .talker import Talker
 
 
 class TTS(StandalonePreTrainedModel):
@@ -175,7 +174,7 @@ class TTS(StandalonePreTrainedModel):
         
         # Download speech tokenizer if loading from Hub
         if not local_files_only and not os.path.isdir(pretrained_model_name_or_path):
-            download_weights_from_hf_specific(
+            download_weights_from_hf(
                 pretrained_model_name_or_path,
                 cache_dir=cache_dir,
                 allow_patterns=["speech_tokenizer/*"],
@@ -198,7 +197,7 @@ class TTS(StandalonePreTrainedModel):
             )
         
         speech_tokenizer_dir = os.path.dirname(speech_tokenizer_path)
-        speech_tokenizer = Qwen3TTSTokenizerStandalone.from_pretrained(speech_tokenizer_dir)
+        speech_tokenizer = Qwen3TTSSpeechTokenizer.from_pretrained(speech_tokenizer_dir)
         model.load_speech_tokenizer(speech_tokenizer)
 
         # Load generation config

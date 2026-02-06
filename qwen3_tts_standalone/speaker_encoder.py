@@ -13,7 +13,7 @@ from torch import nn
 from torch.nn import functional as F
 from librosa.filters import mel as librosa_mel_fn
 
-from .configuration_qwen3_tts_standalone import Qwen3TTSSpeakerEncoderConfigStandalone
+from .configuration import Qwen3TTSSpeakerEncoderConfigStandalone
 
 
 class TimeDelayNetBlock(nn.Module):
