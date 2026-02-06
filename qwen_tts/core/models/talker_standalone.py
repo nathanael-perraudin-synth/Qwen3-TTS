@@ -16,10 +16,8 @@ import torch.nn as nn
 
 from .code_predictor_standalone import CodePredictor
 from .configuration_qwen3_tts_standalone import Qwen3TTSTalkerConfigStandalone
-from .modeling_qwen3_tts_standalone import (
-    Qwen3TTSTalkerModelStandalone,
-    Qwen3TTSTalkerResizeMLPStandalone,
-)
+from .talker_base_standalone import Qwen3TTSTalkerModelStandalone
+from .layers_standalone import Qwen3TTSTalkerResizeMLPStandalone
 from .standalone import (
     DynamicCache,
     sample_top_k_top_p,

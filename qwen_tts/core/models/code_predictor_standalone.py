@@ -28,8 +28,8 @@ from .configuration_qwen3_tts_standalone import (
     Qwen3TTSTalkerCodePredictorConfigStandalone,
 )
 
-# Import the shared layer implementations to ensure exact equivalence with original
-from .modeling_qwen3_tts_standalone import (
+# Import shared layer implementations
+from .layers_standalone import (
     Qwen3TTSDecoderLayerStandalone,
     Qwen3TTSRMSNormStandalone,
     Qwen3TTSRotaryEmbeddingStandalone,

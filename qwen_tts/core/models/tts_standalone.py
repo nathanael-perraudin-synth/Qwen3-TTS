@@ -16,13 +16,13 @@ import torch
 import torch.nn as nn
 
 from .configuration_qwen3_tts_standalone import Qwen3TTSConfigStandalone
-from .modeling_qwen3_tts_standalone import (
+from .speaker_encoder_standalone import (
     Qwen3TTSSpeakerEncoderStandalone,
     mel_spectrogram,
 )
 from .standalone import cached_file
 from .base_model_standalone import StandalonePreTrainedModel
-from .modeling_qwen3_tts_standalone import download_weights_from_hf_specific
+from .utils import download_weights_from_hf_specific
 from ...inference.qwen3_tts_tokenizer_standalone import Qwen3TTSTokenizerStandalone
 from .talker_standalone import Talker
 
