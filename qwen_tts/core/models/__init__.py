@@ -13,13 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Original transformers-based implementations
 from .configuration_qwen3_tts import Qwen3TTSConfig
 from .modeling_qwen3_tts import Qwen3TTSForConditionalGeneration
 from .processing_qwen3_tts import Qwen3TTSProcessor
-
-# Standalone implementations are in the separate qwen3_tts_standalone package.
-# Import directly from there:
-#   from qwen3_tts_standalone import TTS, Talker, CodePredictor
-#   from qwen3_tts_standalone.configuration import Qwen3TTSConfigStandalone

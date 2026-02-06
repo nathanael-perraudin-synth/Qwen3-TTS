@@ -15,19 +15,10 @@
 # limitations under the License.
 
 """
-qwen_tts: Qwen-TTS package (original transformers-based implementation).
-
-For the standalone implementation with minimal transformers dependency,
-use the qwen3_tts_standalone package directly:
-
-    from qwen3_tts_standalone import Qwen3TTSModel, TTS, Talker
+qwen_tts: Qwen-TTS package.
 """
 
 from .inference.qwen3_tts_model import Qwen3TTSModel, VoiceClonePromptItem
 from .inference.qwen3_tts_tokenizer import Qwen3TTSTokenizer
 
-__all__ = [
-    "Qwen3TTSModel",
-    "VoiceClonePromptItem",
-    "Qwen3TTSTokenizer",
-]
+__all__ = ["__version__"]
