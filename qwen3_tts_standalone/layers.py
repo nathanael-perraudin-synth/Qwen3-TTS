@@ -17,11 +17,11 @@ from typing import Callable, Optional
 import torch
 from torch import nn
 
-from .configuration_qwen3_tts_standalone import (
+from .configuration import (
     Qwen3TTSConfigStandalone,
     Qwen3TTSTalkerConfigStandalone,
 )
-from .standalone import (
+from .utils import (
     ACT2FN,
     ALL_ATTENTION_FUNCTIONS,
     Cache,

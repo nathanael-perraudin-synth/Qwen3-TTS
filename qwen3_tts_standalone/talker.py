@@ -14,11 +14,11 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from .code_predictor_standalone import CodePredictor
-from .configuration_qwen3_tts_standalone import Qwen3TTSTalkerConfigStandalone
-from .talker_base_standalone import Qwen3TTSTalkerModelStandalone
-from .layers_standalone import Qwen3TTSTalkerResizeMLPStandalone
-from .standalone import (
+from .code_predictor import CodePredictor
+from .configuration import Qwen3TTSTalkerConfigStandalone
+from .transformer import Qwen3TTSTalkerModelStandalone
+from .layers import Qwen3TTSTalkerResizeMLPStandalone
+from .utils import (
     DynamicCache,
     sample_top_k_top_p,
 )

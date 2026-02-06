@@ -28,9 +28,9 @@ import soundfile as sf
 import torch
 from huggingface_hub import hf_hub_download
 
-from ..core.models.configuration_qwen3_tts_standalone import Qwen3TTSConfigStandalone
-from ..core.models.processing_qwen3_tts_standalone import Qwen3TTSProcessorStandalone
-from ..core.models.tts_standalone import TTS
+from .configuration import Qwen3TTSConfigStandalone
+from .processor import Qwen3TTSProcessor
+from .tts import TTS
 
 AudioLike = Union[
     str,                     # wav path, URL, base64
@@ -119,7 +119,7 @@ class Qwen3TTSModelStandalone:
         This method:
           1) Loads config from the model directory or HuggingFace Hub.
           2) Loads the model via TTS.from_pretrained().
-          3) Loads the processor via Qwen3TTSProcessorStandalone.from_pretrained().
+          3) Loads the processor via Qwen3TTSProcessor.from_pretrained().
           4) Loads generation config from the model.
 
         Args:
@@ -145,7 +145,7 @@ class Qwen3TTSModelStandalone:
         
         # Load processor directly (no AutoProcessor registration needed)
         # Note: fix_mistral_regex is handled internally by transformers tokenizer
-        processor = Qwen3TTSProcessorStandalone.from_pretrained(
+        processor = Qwen3TTSProcessor.from_pretrained(
             pretrained_model_name_or_path,
         )
 

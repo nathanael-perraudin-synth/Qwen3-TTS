@@ -19,17 +19,17 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .standalone import (
+from .utils import (
     DynamicCache,
     create_causal_mask,
     sample_top_k_top_p,
 )
-from .configuration_qwen3_tts_standalone import (
+from .configuration import (
     Qwen3TTSTalkerCodePredictorConfigStandalone,
 )
 
 # Import shared layer implementations
-from .layers_standalone import (
+from .layers import (
     Qwen3TTSDecoderLayerStandalone,
     Qwen3TTSRMSNormStandalone,
     Qwen3TTSRotaryEmbeddingStandalone,

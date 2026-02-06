@@ -39,9 +39,7 @@ from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 import torch
 from huggingface_hub import hf_hub_download, snapshot_download
 from torch import nn
-from transformers import GenerationConfig
-
-from .configuration_qwen3_tts_standalone import BaseConfig
+from .configuration import BaseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -243,8 +241,8 @@ class StandalonePreTrainedModel(nn.Module, StandaloneGenerationMixin):
         self._device = torch.device("cpu")
         self.gradient_checkpointing = False
         
-        # Initialize generation config for GenerationMixin compatibility
-        self.generation_config = GenerationConfig()
+        # Generation config (empty dict, kept for compatibility)
+        self.generation_config = {}
     
     @property
     def device(self) -> torch.device:

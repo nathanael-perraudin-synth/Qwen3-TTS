@@ -14,14 +14,14 @@ from typing import Optional
 import torch
 from torch import nn
 
-from .base_model_standalone import StandalonePreTrainedModel
-from .configuration_qwen3_tts_standalone import Qwen3TTSTalkerConfigStandalone
-from .layers_standalone import (
+from .base_model import StandalonePreTrainedModel
+from .configuration import Qwen3TTSTalkerConfigStandalone
+from .layers import (
     Qwen3TTSRMSNormStandalone,
     Qwen3TTSTalkerDecoderLayerStandalone,
     Qwen3TTSTalkerRotaryEmbeddingStandalone,
 )
-from .standalone import (
+from .utils import (
     BaseModelOutputWithPast,
     DynamicCache,
     can_return_tuple,

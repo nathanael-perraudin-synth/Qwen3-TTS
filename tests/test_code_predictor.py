@@ -14,13 +14,9 @@ These tests verify that:
 import pytest
 import torch
 
-from qwen_tts.core.models.code_predictor_standalone import (
-    CodePredictor,
-    CodePredictorOutput,
-)
-from qwen_tts.core.models.configuration_qwen3_tts_standalone import (
-    Qwen3TTSTalkerCodePredictorConfigStandalone,
-)
+from qwen3_tts_standalone import CodePredictor
+from qwen3_tts_standalone.code_predictor import CodePredictorOutput
+from qwen3_tts_standalone import Qwen3TTSTalkerCodePredictorConfigStandalone
 
 
 @pytest.fixture
