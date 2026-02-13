@@ -27,34 +27,29 @@ def main():
     parser.add_argument(
         "--text",
         type=str,
-        default="Hello world",
+        default="Hallo Welt. Das ist ein Test.",
         help="Target text to synthesize (default: Hello world)",
     )
     parser.add_argument(
         "--audio",
         type=str,
-        default="prompt.wav",
-        help="Path to reference audio file (default: prompt.wav)",
+        default="test_data/prompt.wav",
+        help="Path to reference audio file (default: test_data/prompt.wav)",
     )
     parser.add_argument(
         "--ref-text",
         type=str,
         default=(
-            "Good morning, John. So when you told me you were going to the "
-            "United Nations, I was like, oh my God, that's a lot of travel "
-            "right before Pitt tonight. I was right, but not as much as I "
-            "thought."
+            "Dazu gehört beispielsweise Eurojust, denn bis jetzt sind für den Europäischen Staatsanwalt keine zusätzlichen Mittel und kein zusätzliches Personal vorgesehen."
         ),
         help=(
             "Reference text (transcript of the audio). "
             "Optional if using x-vector-only mode."
         ),
     )
-    parser.add_argument(
-        "--x-vector-only",
-        action="store_true",
-        help="Use x-vector only mode (no ref_text needed, but lower quality)",
-    )
+    
+
+  
     parser.add_argument(
         "--output",
         type=str,
@@ -80,16 +75,16 @@ def main():
     parser.add_argument(
         "--language",
         type=str,
-        default="Auto",
-        help="Language for synthesis (default: Auto)",
+        default="German",
+        help="Language for synthesis (default: English)",
     )
     parser.add_argument(
-        "--standalone",
-        action="store_true",
+        "--no-standalone",
+        action="store_false",
+        dest="standalone",
         help=(
-            "Use the standalone model (transformers-free). "
-            "Note: This model is still under development and may not "
-            "have full functionality yet."
+            "Disable the standalone model and use the transformers-based model instead. "
+            "By default, the standalone (transformers-free) model is used."
         ),
     )
     parser.add_argument(
@@ -162,34 +157,54 @@ def main():
     # Choose model class based on --standalone flag
     if args.standalone:
         print("Using standalone model (transformers-free)...")
-        from qwen3_tts_standalone import Qwen3TTSModel as ModelClass
+        # from qwen3_tts_standalone import Qwen3TTSModel as ModelClass
+        from qwen3_tts_standalone.voice_cloner import VoiceCloner as ModelClass
     else:
         from qwen_tts import Qwen3TTSModel as ModelClass
 
     print(f"Loading model from {args.checkpoint}...")
-    model = ModelClass.from_pretrained(
-        args.checkpoint,
-        device_map=device,
-        dtype=dtype,
-        attn_implementation=attn_impl,
-    )
+    if args.standalone:
+        # VoiceCloner doesn't use attn_implementation parameter
+        model = ModelClass.from_pretrained(
+            args.checkpoint,
+            device_map=device,
+            dtype=dtype,
+        )
+    else:
+        model = ModelClass.from_pretrained(
+            args.checkpoint,
+            device_map=device,
+            dtype=dtype,
+            attn_implementation=attn_impl,
+        )
 
     print("Generating voice clone...")
     print(f"  Target text: {args.text}")
     print(f"  Reference audio: {args.audio}")
     print(f"  Reference text: {args.ref_text or '(none)'}")
-    print(f"  X-vector only: {args.x_vector_only}")
 
-    wavs, sr = model.generate_voice_clone(
-        text=args.text,
-        language=args.language,
-        ref_audio=args.audio,
-        ref_text=args.ref_text,
-        x_vector_only_mode=args.x_vector_only,
-    )
-
+    if args.standalone:
+        # VoiceCloner.clone_voice returns (audio, sr) where audio is a numpy array
+        audio, sr = model.clone_voice(
+            text=args.text,
+            language=args.language,
+            ref_audio=args.audio,
+            ref_text=args.ref_text,
+            non_streaming_mode=True,
+        )
+    else:
+        # Qwen3TTSModel.generate_voice_clone returns (List[audio], sr)
+        wavs, sr = model.generate_voice_clone(
+            text=args.text,
+            language=args.language,
+            ref_audio=args.audio,
+            ref_text=args.ref_text,
+            x_vector_only_mode=False,
+            non_streaming_mode=True,
+        )
+        audio = wavs[0]
     print(f"Saving output to {args.output}...")
-    sf.write(args.output, wavs[0], sr)
+    sf.write(args.output, audio, sr)
     print("Done!")
 
 
