@@ -89,17 +89,13 @@ class MimiEncoderConfig:
     num_key_value_heads: int = 8
     head_dim: int = 64
     intermediate_size: int = 2048
-    hidden_act: str = "gelu"
     max_position_embeddings: int = 8000
-    initializer_range: float = 0.02
-    use_cache: bool = False
     sampling_rate: int = 24000
     frame_rate: float = 12.5
     num_quantizers: int = 16
     num_semantic_quantizers: int = 1
     codebook_size: int = 2048
     codebook_dim: int = 256
-    vector_quantization_hidden_dimension: int = 256
     upsample_groups: int = 512
     num_filters: int = 64
     num_residual_layers: int = 1
@@ -113,9 +109,6 @@ class MimiEncoderConfig:
     norm_eps: float = 1e-5
     rope_theta: float = 10000.0
     layer_scale_initial_scale: float = 0.01
-    use_conv_shortcut: bool = False
-    use_causal_conv: bool = True
-    trim_right_ratio: float = 1.0
     
     @property
     def encodec_frame_rate(self) -> int:
@@ -254,7 +247,6 @@ def convert_to_standalone_config(
             "num_key_value_heads": getattr(enc, "num_key_value_heads", 8),
             "head_dim": getattr(enc, "head_dim", 64),
             "intermediate_size": getattr(enc, "intermediate_size", 2048),
-            "hidden_act": getattr(enc, "hidden_act", "gelu"),
             "sampling_rate": getattr(enc, "sampling_rate", 24000),
             "frame_rate": getattr(enc, "frame_rate", 12.5),
             "num_quantizers": getattr(original_config, "encoder_valid_num_quantizers", 16),
