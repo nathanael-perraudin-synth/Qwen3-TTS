@@ -2,18 +2,8 @@
 
 <br>
 
-<p align="center">
-    <img src="https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/qwen3_tts_logo.png" width="400"/>
-<p>
 
-<p align="center">
-&nbsp&nbsp🤗 <a href="https://huggingface.co/collections/Qwen/qwen3-tts">Hugging Face</a>&nbsp&nbsp | &nbsp&nbsp🤖 <a href="https://modelscope.cn/collections/Qwen/Qwen3-TTS">ModelScope</a>&nbsp&nbsp | &nbsp&nbsp📑 <a href="https://qwen.ai/blog?id=qwen3tts-0115">Blog</a>&nbsp&nbsp | &nbsp&nbsp📑 <a href="https://arxiv.org/abs/2601.15621">Paper</a>&nbsp&nbsp
-<br>
-🖥️ <a href="https://huggingface.co/spaces/Qwen/Qwen3-TTS">Hugging Face Demo</a>&nbsp&nbsp | &nbsp&nbsp 🖥️ <a href="https://modelscope.cn/studios/Qwen/Qwen3-TTS">ModelScope Demo</a>&nbsp&nbsp | &nbsp&nbsp💬 <a href="https://github.com/QwenLM/Qwen/blob/main/assets/wechat.png">WeChat (微信)</a>&nbsp&nbsp | &nbsp&nbsp🫨 <a href="https://discord.gg/CV4E9rpNSD">Discord</a>&nbsp&nbsp | &nbsp&nbsp📑 <a href="https://help.aliyun.com/zh/model-studio/qwen-tts-realtime">API</a>
-
-</p>
-
-**Qwen3-TTS** is a powerful speech generation system offering comprehensive support for voice cloning, voice design, ultra-high-quality human-like speech synthesis, and natural language-based voice control.
+**Qwen3-TTS** is a powerful speech generation system offering comprehensive support for voice cloning, voice design, ultra-high-quality human-like speech synthesis, and natural language-based voice control. This is a fork from the [original repo](https://github.com/QwenLM/Qwen3-TTS).
 
 ## What Makes This Implementation Special?
 
@@ -54,7 +44,7 @@ This implementation adds full fine-tuning support that wasn't easily accessible 
 - Training examples - See `tests/test_training.py` for complete examples
 
 ### Quality Assurance
-Extensive testing ensures this simplified version maintains perfect equivalence with the original:
+Extensive testing ensures this simplified version maintains equivalence with the original:
 
 - **191+ comprehensive tests** across 14 test files
 - **Equivalence validation** - Numerically identical outputs to original implementation
@@ -128,108 +118,6 @@ This implementation is ideal for:
 - [Acknowledgments](#acknowledgments)
 - [Citation](#citation)
 
-## Overview
-### Introduction
-
-<p align="center">
-    <img src="https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/qwen3_tts_introduction.png" width="90%"/>
-<p>
-
-Qwen3-TTS covers 10 major languages (Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, and Italian) as well as multiple dialectal voice profiles to meet global application needs. In addition, the models feature strong contextual understanding, enabling adaptive control of tone, speaking rate, and emotional expression based on instructions and text semantics, and they show markedly improved robustness to noisy input text. Key features:
-
-* **Powerful Speech Representation**: Powered by the self-developed Qwen3-TTS-Tokenizer-12Hz, it achieves efficient acoustic compression and high-dimensional semantic modeling of speech signals. It fully preserves paralinguistic information and acoustic environmental features, enabling high-speed, high-fidelity speech reconstruction through a lightweight non-DiT architecture.
-* **Universal End-to-End Architecture**: Utilizing a discrete multi-codebook LM architecture, it realizes full-information end-to-end speech modeling. This completely bypasses the information bottlenecks and cascading errors inherent in traditional LM+DiT schemes, significantly enhancing the model’s versatility, generation efficiency, and performance ceiling.
-* **Extreme Low-Latency Streaming Generation**: Based on the innovative Dual-Track hybrid streaming generation architecture, a single model supports both streaming and non-streaming generation. It can output the first audio packet immediately after a single character is input, with end-to-end synthesis latency as low as 97ms, meeting the rigorous demands of real-time interactive scenarios.
-* **Intelligent Text Understanding and Voice Control**: Supports speech generation driven by natural language instructions, allowing for flexible control over multi-dimensional acoustic attributes such as timbre, emotion, and prosody. By deeply integrating text semantic understanding, the model adaptively adjusts tone, rhythm, and emotional expression, achieving lifelike “what you imagine is what you hear” output.
-
-
-### Model Architecture
-
-<p align="center">
-    <img src="https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/overview.png" width="80%"/>
-<p>
-
-### Standalone Implementation Details
-
-This standalone version refactors the original implementation into clean, modular components:
-
-#### Core Components
-
-| Component | Purpose | Key Features |
-|-----------|---------|--------------|
-| **Talker** | Main language model | Text-to-codec generation, multimodal embeddings |
-| **CodePredictor** | Parallel codec prediction | Multi-codebook generation, fine-tuning support |
-| **SpeakerEncoder** | Voice embedding extraction | ECAPA-TDNN architecture, mel-spectrogram processing |
-| **Tokenizer V2 (12Hz)** | Audio encoding/decoding | Transformer-based, 12 fps, 16 codebooks |
-| **VoiceCloner** | Simplified voice cloning | ICL-based, single-sample, explicit pipeline, easy to customize |
-
-#### Key Architectural Changes
-
-**Simplified Attention Mechanisms**
-- Removed complex HuggingFace abstractions
-- Direct PyTorch implementations of multihead attention
-- Support for Flash Attention 2 for memory efficiency
-- Clear KV cache management
-
-**Standalone Configuration**
-- Native Python dataclasses instead of HuggingFace PretrainedConfig
-- JSON serialization/deserialization built-in
-- Easy-to-understand configuration hierarchy
-- Validation at instantiation time
-
-**Training-Ready Design**
-- `forward_finetune()` methods for training loops
-- Proper label shifting and loss computation
-- Gradient flow verified through extensive tests
-- Compatible with standard PyTorch optimizers
-
-**Weight Loading**
-- `load_original_state_dict()` methods for compatibility
-- Automatic weight mapping from original checkpoints
-- No conversion scripts needed
-- Verified numerical equivalence
-
-
-
-### Released Models Description and Download
-
-Below is an introduction and download information for the Qwen3-TTS models that have already been released. Other models mentioned in the technical report will be released in the near future. Please select and download the model that fits your needs.
-
-| Tokenizer Name                      | Description |
-|---------------------------------|-------------|
-| Qwen3-TTS-Tokenizer-12Hz        | The Qwen3-TTS-Tokenizer-12Hz model which can encode the input speech into codes and decode them back into speech. |
-
-
-| Model | Features | Language Support | Streaming | Instruction Control |
-|---|---|---|---|---|
-| Qwen3-TTS-12Hz-1.7B-VoiceDesign | Performs voice design based on user-provided descriptions. | Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian | ✅ | ✅ |
-| Qwen3-TTS-12Hz-1.7B-CustomVoice | Provides style control over target timbres via user instructions; supports 9 premium timbres covering various combinations of gender, age, language, and dialect. | Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian | ✅ | ✅ |
-| Qwen3-TTS-12Hz-1.7B-Base | Base model capable of 3-second rapid voice clone from user audio input; can be used for fine-tuning (FT) other models. | Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian | ✅ |  |
-| Qwen3-TTS-12Hz-0.6B-CustomVoice | Supports 9 premium timbres covering various combinations of gender, age, language, and dialect. | Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian | ✅ |  |
-| Qwen3-TTS-12Hz-0.6B-Base | Base model capable of 3-second rapid voice clone from user audio input; can be used for fine-tuning (FT) other models. | Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian | ✅ |  |
-
-During model loading in the qwen-tts package or vLLM, model weights will be automatically downloaded based on the model name. However, if your runtime environment is not conducive to downloading weights during execution, you can refer to the following commands to manually download the model weights to a local directory:
-
-```bash
-# Download through ModelScope (recommended for users in Mainland China)
-pip install -U modelscope
-modelscope download --model Qwen/Qwen3-TTS-Tokenizer-12Hz  --local_dir ./Qwen3-TTS-Tokenizer-12Hz 
-modelscope download --model Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice --local_dir ./Qwen3-TTS-12Hz-1.7B-CustomVoice
-modelscope download --model Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign --local_dir ./Qwen3-TTS-12Hz-1.7B-VoiceDesign
-modelscope download --model Qwen/Qwen3-TTS-12Hz-1.7B-Base --local_dir ./Qwen3-TTS-12Hz-1.7B-Base
-modelscope download --model Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice --local_dir ./Qwen3-TTS-12Hz-0.6B-CustomVoice
-modelscope download --model Qwen/Qwen3-TTS-12Hz-0.6B-Base --local_dir ./Qwen3-TTS-12Hz-0.6B-Base
-
-# Download through Hugging Face
-pip install -U "huggingface_hub[cli]"
-huggingface-cli download Qwen/Qwen3-TTS-Tokenizer-12Hz --local-dir ./Qwen3-TTS-Tokenizer-12Hz
-huggingface-cli download Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice --local-dir ./Qwen3-TTS-12Hz-1.7B-CustomVoice
-huggingface-cli download Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign --local-dir ./Qwen3-TTS-12Hz-1.7B-VoiceDesign
-huggingface-cli download Qwen/Qwen3-TTS-12Hz-1.7B-Base --local-dir ./Qwen3-TTS-12Hz-1.7B-Base
-huggingface-cli download Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice --local-dir ./Qwen3-TTS-12Hz-0.6B-CustomVoice
-huggingface-cli download Qwen/Qwen3-TTS-12Hz-0.6B-Base --local-dir ./Qwen3-TTS-12Hz-0.6B-Base
-```
-
 
 ## Quickstart
 
@@ -261,7 +149,7 @@ This standalone implementation has minimal dependencies:
 - **Optional**: flash-attn (for memory efficiency)
 - **Optional**: transformers (only for equivalence tests)
 
-The core model code (`qwen3_tts_standalone/`) has zero dependency on HuggingFace Transformers.
+The core model code (`qwen3_tts_standalone/`) has zero dependency on HuggingFace Transformers. The original model remains in `qwen3_tts`.
 
 #### Optional: Flash Attention 2
 
