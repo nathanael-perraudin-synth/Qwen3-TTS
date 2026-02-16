@@ -673,7 +673,7 @@ class TestRoundtrip:
         # Decode with both
         with torch.no_grad():
             orig_output = orig_tokenizer.model.decode(codes, return_dict=True)
-            standalone_output = standalone_tokenizer.decoder_model.decode(codes.to(standalone_tokenizer.device), return_dict=True)
+            standalone_output = standalone_tokenizer.model.decode(codes.to(standalone_tokenizer.device), return_dict=True)
         
         orig_wav = orig_output.audio_values[0].cpu()
         standalone_wav = standalone_output.audio_values[0].cpu()
