@@ -1,4 +1,4 @@
-# Qwen3-TTS
+# Qwen3-TTS: Simplified Standalone Implementation
 
 <br>
 
@@ -13,31 +13,119 @@
 
 </p>
 
-We release **Qwen3-TTS**, a series of powerful speech generation capabilities developed by Qwen, offering comprehensive support for voice clone, voice design, ultra-high-quality human-like speech generation, and natural language-based voice control. It provides developers and users with the most extensive set of speech generation features available.
+**Qwen3-TTS** is a powerful speech generation system offering comprehensive support for voice cloning, voice design, ultra-high-quality human-like speech synthesis, and natural language-based voice control.
+
+## What Makes This Implementation Special?
+
+This repository provides a **simplified, standalone, human-friendly** implementation of Qwen3-TTS with the following improvements:
+
+- **Standalone Architecture**: Minimal dependencies, easier to understand and modify
+- **Simplified Codebase**: Refactored for clarity without sacrificing functionality
+- **Fine-tuning Ready**: Built-in training functions for easy model customization
+- **Full Compatibility**: Drop-in replacement for the original implementation with identical outputs
+- **Comprehensive Tests**: 191+ tests ensuring reliability and equivalence with the original
+
+Perfect for researchers, developers, and practitioners who want to:
+- Understand the internals of modern TTS systems
+- Fine-tune models on custom datasets
+- Integrate TTS into production applications
+- Experiment with neural speech synthesis
 
 
 ## News
 * 2026.1.22: 🎉🎉🎉 We have released [Qwen3-TTS](https://huggingface.co/collections/Qwen/qwen3-tts) series (0.6B/1.7B) based on Qwen3-TTS-Tokenizer-12Hz. Please check our [blog](https://qwen.ai/blog?id=qwen3tts-0115)!
 
+## Why This Standalone Version?
+
+### Simplification & Clarity
+The original Qwen3-TTS implementation is tightly coupled with the HuggingFace Transformers library, making it challenging to understand, modify, or extend. This standalone version:
+
+- **Removes unnecessary abstractions** - Direct, readable PyTorch code
+- **Standalone components** - Each module (Talker, CodePredictor, SpeakerEncoder, Tokenizer) is self-contained
+- **Clear architecture** - Easy to trace data flow from text input to audio output
+- **Minimal dependencies** - Only PyTorch, no heavy framework requirements
+
+### Fine-tuning & Customization
+This implementation adds full fine-tuning support that wasn't easily accessible before:
+
+- `forward_sub_talker_finetune()` - Train the CodePredictor on custom data
+- `CodePredictor.forward_finetune()` - Direct access to training path
+- Loss computation utilities - Standard causal LM loss with label shifting
+- Training examples - See `tests/test_training.py` for complete examples
+
+### Quality Assurance
+Extensive testing ensures this simplified version maintains perfect equivalence with the original:
+
+- **191+ comprehensive tests** across 14 test files
+- **Equivalence validation** - Numerically identical outputs to original implementation
+- **Weight compatibility** - Load pretrained weights from official Qwen models
+- **Training verification** - Overfitting tests confirm gradient flow
+
+### Use Cases
+
+This implementation is ideal for:
+
+1. **Researchers** - Understand and experiment with modern TTS architectures
+2. **ML Engineers** - Fine-tune models on domain-specific data (customer service voices, character voices, etc.)
+3. **Production Teams** - Deploy with minimal dependencies and clear code paths
+4. **Students** - Learn speech synthesis without framework complexity
+
+### Comparison: Standalone vs Original
+
+| Feature | Original Implementation | This Standalone Version |
+|---------|------------------------|-------------------------|
+| **Dependencies** | HuggingFace Transformers required | Minimal (PyTorch only for core) |
+| **Code Complexity** | Tightly coupled with HF abstractions | Direct PyTorch, easy to understand |
+| **Fine-tuning Support** | Requires custom training loops | Built-in `forward_finetune()` methods |
+| **Model Loading** | HF AutoModel pattern | Simple `from_pretrained()` wrapper |
+| **Testing** | Limited test coverage | 191+ comprehensive tests |
+| **Equivalence** | N/A | Numerically identical outputs |
+| **Documentation** | Scattered across HF docs | Self-contained in codebase |
+| **Extensibility** | Modify HF framework | Modify straightforward PyTorch |
+| **Production Ready** | Framework overhead | Lightweight deployment |
+| **Learning Curve** | Steep (HF + TTS concepts) | Gentle (just TTS concepts) |
+
 ## Contents <!-- omit in toc -->
 
+- [News](#news)
+- [Why This Standalone Version?](#why-this-standalone-version)
+  - [Simplification & Clarity](#simplification--clarity)
+  - [Fine-tuning & Customization](#fine-tuning--customization)
+  - [Quality Assurance](#quality-assurance)
+  - [Use Cases](#use-cases)
+  - [Comparison: Standalone vs Original](#comparison-standalone-vs-original)
 - [Overview](#overview)
   - [Introduction](#introduction)
   - [Model Architecture](#model-architecture)
+  - [Standalone Implementation Details](#standalone-implementation-details)
   - [Released Models Description and Download](#released-models-description-and-download)
 - [Quickstart](#quickstart)
   - [Environment Setup](#environment-setup)
+  - [Quick Start Example](#quick-start-example)
   - [Python Package Usage](#python-package-usage)
     - [Custom Voice Generation](#custom-voice-generate)
     - [Voice Design](#voice-design)
     - [Voice Clone](#voice-clone)
+      - [Option 1: `Qwen3TTSModel.generate_voice_clone()` (full-featured)](#option-1-qwen3ttsmodelgenerate_voice_clone-full-featured)
+      - [Option 2: `VoiceCloner` (simplified, standalone)](#option-2-voicecloner-simplified-standalone)
     - [Voice Design then Clone](#voice-design-then-clone)
     - [Tokenizer Encode and Decode](#tokenizer-encode-and-decode)
   - [Launch Local Web UI Demo](#launch-local-web-ui-demo)
   - [DashScope API Usage](#dashscope-api-usage)
 - [vLLM Usage](#vllm-usage)
 - [Fine Tuning](#fine-tuning)
+  - [Training Functions](#training-functions)
+  - [Training Features](#training-features)
+- [Testing](#testing)
+  - [Test Coverage](#test-coverage-191-tests)
+  - [Running Tests](#running-tests)
+  - [Test Features](#test-features)
+  - [Test Organization](#test-organization)
 - [Evaluation](#evaluation)
+- [Contributing](#contributing)
+  - [Priority Areas](#priority-areas)
+  - [How to Contribute](#how-to-contribute)
+- [Acknowledgments](#acknowledgments)
 - [Citation](#citation)
 
 ## Overview
@@ -60,6 +148,48 @@ Qwen3-TTS covers 10 major languages (Chinese, English, Japanese, Korean, German,
 <p align="center">
     <img src="https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/overview.png" width="80%"/>
 <p>
+
+### Standalone Implementation Details
+
+This standalone version refactors the original implementation into clean, modular components:
+
+#### Core Components
+
+| Component | Purpose | Key Features |
+|-----------|---------|--------------|
+| **Talker** | Main language model | Text-to-codec generation, multimodal embeddings |
+| **CodePredictor** | Parallel codec prediction | Multi-codebook generation, fine-tuning support |
+| **SpeakerEncoder** | Voice embedding extraction | ECAPA-TDNN architecture, mel-spectrogram processing |
+| **Tokenizer V2 (12Hz)** | Audio encoding/decoding | Transformer-based, 12 fps, 16 codebooks |
+| **VoiceCloner** | Simplified voice cloning | ICL-based, single-sample, explicit pipeline, easy to customize |
+
+#### Key Architectural Changes
+
+**Simplified Attention Mechanisms**
+- Removed complex HuggingFace abstractions
+- Direct PyTorch implementations of multihead attention
+- Support for Flash Attention 2 for memory efficiency
+- Clear KV cache management
+
+**Standalone Configuration**
+- Native Python dataclasses instead of HuggingFace PretrainedConfig
+- JSON serialization/deserialization built-in
+- Easy-to-understand configuration hierarchy
+- Validation at instantiation time
+
+**Training-Ready Design**
+- `forward_finetune()` methods for training loops
+- Proper label shifting and loss computation
+- Gradient flow verified through extensive tests
+- Compatible with standard PyTorch optimizers
+
+**Weight Loading**
+- `load_original_state_dict()` methods for compatibility
+- Automatic weight mapping from original checkpoints
+- No conversion scripts needed
+- Verified numerical equivalence
+
+
 
 ### Released Models Description and Download
 
@@ -105,28 +235,37 @@ huggingface-cli download Qwen/Qwen3-TTS-12Hz-0.6B-Base --local-dir ./Qwen3-TTS-1
 
 ### Environment Setup
 
-The easiest way to quickly use Qwen3-TTS is to install the `qwen-tts` Python package from PyPI. This will pull in the required runtime dependencies and allow you to load any released Qwen3-TTS model. We recommend using a **fresh, isolated environment** to avoid dependency conflicts with existing packages. You can create a clean Python 3.12 environment like this:
+Clone this repo and install in editable mode:
 
 ```bash
-conda create -n qwen3-tts python=3.12 -y
-conda activate qwen3-tts
-```
-
-then run:
-
-```bash
-pip install -U qwen-tts
-```
-
-If you want to develop or modify the code locally, install from source in editable mode.
-
-```bash
-git clone https://github.com/QwenLM/Qwen3-TTS.git
+git clone https://github.com/nathanael-perraudin-synth/Qwen3-TTS.git
 cd Qwen3-TTS
 pip install -e .
 ```
 
-Additionally, we recommend using FlashAttention 2 to reduce GPU memory usage.
+Or using [uv](https://docs.astral.sh/uv/) for faster dependency resolution:
+
+```bash
+git clone https://github.com/nathanael-perraudin-synth/Qwen3-TTS.git
+cd Qwen3-TTS
+uv pip install -e .
+```
+
+This installs the `qwen-tts` package and all its dependencies. The standalone module `qwen3_tts_standalone` is importable directly from the repository root.
+
+
+
+This standalone implementation has minimal dependencies:
+- **Core**: PyTorch (required)
+- **Audio**: librosa, soundfile (for audio I/O)
+- **Optional**: flash-attn (for memory efficiency)
+- **Optional**: transformers (only for equivalence tests)
+
+The core model code (`qwen3_tts_standalone/`) has zero dependency on HuggingFace Transformers.
+
+#### Optional: Flash Attention 2
+
+We recommend using FlashAttention 2 to reduce GPU memory usage:
 
 ```bash
 pip install -U flash-attn --no-build-isolation
@@ -138,12 +277,46 @@ If your machine has less than 96GB of RAM and lots of CPU cores, run:
 MAX_JOBS=4 pip install -U flash-attn --no-build-isolation
 ```
 
-Also, you should have hardware that is compatible with FlashAttention 2. Read more about it in the official documentation of the [FlashAttention repository](https://github.com/Dao-AILab/flash-attention). FlashAttention 2 can only be used when a model is loaded in `torch.float16` or `torch.bfloat16`.
+FlashAttention 2 requires compatible hardware and works with `torch.float16` or `torch.bfloat16`. Read more in the [FlashAttention repository](https://github.com/Dao-AILab/flash-attention).
 
+### Quick Start Example
+
+Here's how simple it is to generate speech with this standalone implementation:
+
+```python
+import torch
+import soundfile as sf
+from qwen3_tts_standalone import Qwen3TTSModel
+
+# Load model (automatic download from HuggingFace)
+model = Qwen3TTSModel.from_pretrained(
+    "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+    device_map="cuda:0",
+    dtype=torch.bfloat16,
+    attn_implementation="flash_attention_2",  # Optional: use Flash Attention
+)
+
+# Generate speech
+wavs, sr = model.generate_custom_voice(
+    text="Hello! This is a simplified standalone implementation of Qwen3-TTS.",
+    language="English",
+    speaker="Ryan",
+    instruct="Speak with enthusiasm and clarity."  # Optional instruction
+)
+
+# Save audio
+sf.write("output.wav", wavs[0], sr)
+```
+
+That's it! The model automatically handles:
+- Text tokenization and embedding
+- Speaker embedding generation
+- Multi-codebook prediction
+- Audio decoding
 
 ### Python Package Usage
 
-After installation, you can import `Qwen3TTSModel` to run custom voice TTS, voice design, and voice clone. The model weights can be specified either as a Hugging Face model id (recommended) or as a local directory path you downloaded. For all the `generate_*` functions below, besides the parameters shown and explicitly documented, you can also pass generation kwargs supported by Hugging Face Transformers `model.generate`, e.g., `max_new_tokens`, `top_p`, etc.
+After installation, you can import `Qwen3TTSModel` from `qwen3_tts_standalone` to run custom voice TTS, voice design, and voice clone. The model weights can be specified either as a Hugging Face model id (recommended) or as a local directory path you downloaded. For all the `generate_*` functions below, besides the parameters shown and explicitly documented, you can also pass generation kwargs such as `max_new_tokens`, `top_p`, etc.
 
 #### Custom Voice Generate
 
@@ -152,7 +325,7 @@ For custom voice models (`Qwen3-TTS-12Hz-1.7B/0.6B-CustomVoice`), you just need 
 ```python
 import torch
 import soundfile as sf
-from qwen_tts import Qwen3TTSModel
+from qwen3_tts_standalone import Qwen3TTSModel
 
 model = Qwen3TTSModel.from_pretrained(
     "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
@@ -205,7 +378,7 @@ For the voice design model (`Qwen3-TTS-12Hz-1.7B-VoiceDesign`), you can use `gen
 ```python
 import torch
 import soundfile as sf
-from qwen_tts import Qwen3TTSModel
+from qwen3_tts_standalone import Qwen3TTSModel
 
 model = Qwen3TTSModel.from_pretrained(
     "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
@@ -240,12 +413,21 @@ sf.write("output_voice_design_2.wav", wavs[1], sr)
 
 #### Voice Clone
 
-For the voice clone model (`Qwen3-TTS-12Hz-1.7B/0.6B-Base`), to clone a voice and synthesize new content, you just need to provide a reference audio clip (`ref_audio`) along with its transcript (`ref_text`). `ref_audio` can be a local file path, a URL, a base64 string, or a `(numpy_array, sample_rate)` tuple. If you set `x_vector_only_mode=True`, only the speaker embedding is used so `ref_text` is not required, but cloning quality may be reduced.
+This standalone implementation provides **two voice cloning APIs** for the Base model (`Qwen3-TTS-12Hz-1.7B/0.6B-Base`), each suited to different use cases:
+
+| API | Class | Batch | Modes | Best for |
+|-----|-------|-------|-------|----------|
+| `Qwen3TTSModel.generate_voice_clone()` | `Qwen3TTSModel` | Yes | ICL + x-vector-only | Production use, batch inference, reusable prompts |
+| `VoiceCloner.clone_voice()` | `VoiceCloner` | No | ICL only | Simplicity, learning, customization |
+
+##### Option 1: `Qwen3TTSModel.generate_voice_clone()` (full-featured)
+
+The `Qwen3TTSModel` wrapper provides the full voice cloning API with batch support, reusable prompts, and both ICL and x-vector-only modes. Provide a reference audio clip (`ref_audio`) along with its transcript (`ref_text`). `ref_audio` can be a local file path, a URL, a base64 string, or a `(numpy_array, sample_rate)` tuple. If you set `x_vector_only_mode=True`, only the speaker embedding is used so `ref_text` is not required, but cloning quality may be reduced.
 
 ```python
 import torch
 import soundfile as sf
-from qwen_tts import Qwen3TTSModel
+from qwen3_tts_standalone import Qwen3TTSModel
 
 model = Qwen3TTSModel.from_pretrained(
     "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
@@ -285,6 +467,53 @@ sf.write("output_voice_clone_2.wav", wavs[1], sr)
 
 For more examples of reusable voice clone prompts, batch cloning, and batch inference, please refer to the [example codes](https://github.com/QwenLM/Qwen3-TTS/blob/main/examples/test_model_12hz_base.py). With those examples and the `generate_voice_clone` function description, you can explore more advanced usage patterns.
 
+##### Option 2: `VoiceCloner` (simplified, standalone)
+
+The `VoiceCloner` class provides a simpler, more explicit voice cloning API using In-Context Learning (ICL). It loads and manages the individual model components (Talker, SpeakerEncoder, SpeechTokenizer) directly, making the generation pipeline transparent and easy to understand or modify.
+
+Key differences from `Qwen3TTSModel.generate_voice_clone()`:
+- **Single-sample only** -- no batch inference (returns a single `np.ndarray` instead of a list)
+- **ICL mode only** -- no x-vector-only mode
+- **Self-contained** -- loads components individually via its own `from_pretrained()`
+- **Explicit pipeline** -- the ICL prompt construction logic is visible and hackable
+
+```python
+import torch
+import soundfile as sf
+from qwen3_tts_standalone import VoiceCloner
+
+cloner = VoiceCloner.from_pretrained(
+    "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    device_map="cuda:0",
+    dtype=torch.bfloat16,
+)
+
+audio, sr = cloner.clone_voice(
+    text="Hello, how are you today?",
+    ref_audio="speaker_sample.wav",
+    ref_text="This is a sample of my voice.",
+    language="English",
+)
+sf.write("output.wav", audio, sr)
+```
+
+`VoiceCloner.clone_voice()` also accepts generation parameters directly:
+
+```python
+audio, sr = cloner.clone_voice(
+    text="Let me explain the concept step by step.",
+    ref_audio="speaker_sample.wav",
+    ref_text="This is a sample of my voice.",
+    language="English",
+    max_new_tokens=4096,
+    temperature=0.9,
+    top_k=50,
+    repetition_penalty=1.05,
+)
+```
+
+The `VoiceCloner` is ideal if you want to understand or modify the voice cloning internals -- for example, to change how the ICL prompt is constructed or to integrate custom speaker embedding logic.
+
 #### Voice Design then Clone
 
 If you want a designed voice that you can reuse like a cloned speaker, a practical workflow is: (1) use the **VoiceDesign** model to synthesize a short reference clip that matches your target persona, (2) feed that clip into `create_voice_clone_prompt` to build a reusable prompt, and then (3) call `generate_voice_clone` with `voice_clone_prompt` to generate new content without re-extracting features every time. This is especially useful when you want a consistent character voice across many lines.
@@ -292,7 +521,7 @@ If you want a designed voice that you can reuse like a cloned speaker, a practic
 ```python
 import torch
 import soundfile as sf
-from qwen_tts import Qwen3TTSModel
+from qwen3_tts_standalone import Qwen3TTSModel
 
 # create a reference audio in the target style using the VoiceDesign model
 design_model = Qwen3TTSModel.from_pretrained(
@@ -459,6 +688,108 @@ python end2end.py --query-type Base --mode-tag icl
 ## Fine Tuning
 
 Please refer to [Qwen3-TTS-Finetuning](finetuning/) for detailed instructions on fine-tuning Qwen3-TTS.
+
+This standalone implementation includes built-in fine-tuning support with the following features:
+
+### Training Functions
+
+**CodePredictor Fine-tuning**
+```python
+from qwen3_tts_standalone import CodePredictor, CodePredictorConfig
+
+# Create model
+config = CodePredictorConfig(vocab_size=2048, hidden_size=512, ...)
+model = CodePredictor(config, embedding_dim=512)
+
+# Training loop
+for batch in dataloader:
+    output = model.forward_finetune(inputs_embeds, labels)
+    output.loss.backward()
+    optimizer.step()
+```
+
+**Talker Sub-Model Fine-tuning**
+```python
+from qwen3_tts_standalone import Talker, TalkerConfig
+
+talker = Talker(config)
+
+# Extract hidden states and codec IDs from your data
+logits, loss = talker.forward_sub_talker_finetune(codec_ids, hidden_states)
+loss.backward()
+optimizer.step()
+```
+
+### Training Features
+
+- **Causal LM Loss** - Standard next-token prediction with label shifting
+- **Gradient Flow** - Verified through overfitting tests on synthetic and real data
+- **Weight Compatibility** - Load pretrained weights, fine-tune, and save
+- **Flexible Training** - Train CodePredictor alone or full Talker end-to-end
+
+See `tests/test_training.py` for complete training examples and validation.
+
+## Testing
+
+This implementation includes a comprehensive test suite to ensure correctness and equivalence with the original:
+
+### Test Coverage (191+ Tests)
+
+| Category | Tests | Coverage |
+|----------|-------|----------|
+| **Configuration** | 42 | Serialization, validation, compatibility |
+| **Equivalence Testing** | 66 | Output matching with original implementation |
+| **Training/Fine-tuning** | 18 | Loss computation, gradient flow, overfitting |
+| **Code Predictor** | 11 | Generation, sampling, batch processing |
+| **Voice Cloning** | 10 | API validation, output equivalence |
+| **End-to-End** | 8 | Full pipeline testing |
+| **Integration** | 36 | Package imports, utilities, edge cases |
+
+### Running Tests
+
+```bash
+# Install test dependencies
+pip install pytest pytest-cov
+
+# Run all tests
+pytest tests/ -v
+
+# Run specific test categories
+pytest tests/test_training.py -v          # Training tests
+pytest tests/test_equivalence_*.py -v     # Equivalence tests
+pytest tests/test_e2e.py -v               # End-to-end tests
+
+# Run with coverage report
+pytest tests/ --cov=qwen3_tts_standalone --cov-report=html
+
+# Skip slow tests (GPU required)
+pytest tests/ -v -m "not slow"
+```
+
+### Test Features
+
+- **Deterministic Testing** - Seeded random number generation for reproducibility
+- **Equivalence Validation** - Numerical comparison with original implementation (atol=1e-5)
+- **Weight Transfer Tests** - Verify loading weights from official checkpoints
+- **Overfitting Tests** - Confirm model can learn (synthetic and real data)
+- **Shape Validation** - Verify output shapes across all operations
+- **Gradient Flow Tests** - Ensure backpropagation works correctly
+
+### Test Organization
+
+```
+tests/
+├── conftest.py                              # Shared fixtures and utilities
+├── test_configuration.py                    # Config serialization/validation
+├── test_equivalence_*.py (5 files)         # Original vs standalone comparison
+├── test_training.py                         # Fine-tuning functions
+├── test_code_predictor.py                   # CodePredictor generation
+├── test_talker.py                           # Talker instantiation
+├── test_voice_cloner.py                     # VoiceCloner API
+├── test_e2e.py                              # Full pipeline tests
+├── test_standalone_package.py               # Package imports
+└── test_standalone_utils.py                 # Utility functions
+```
 
 ## Evaluation
 
@@ -1339,16 +1670,71 @@ During evaluation, we ran inference for all models with `dtype=torch.bfloat16` a
 </details>
 
 
+## Contributing
+
+We welcome contributions to improve this standalone implementation! Areas where contributions are especially valuable:
+
+### Priority Areas
+
+1. **Additional Tests**
+   - Inference API tests (`generate_custom_voice`, `generate_voice_design`)
+   - Audio format handling (URL, base64, numpy arrays)
+   - Error handling and edge cases
+   - CLI/Demo testing
+
+2. **Documentation**
+   - Architecture deep-dives
+   - Training tutorials
+   - Fine-tuning best practices
+   - Performance optimization guides
+
+3. **Features**
+   - Streaming generation support
+   - Batch processing optimizations
+   - Additional export formats
+   - Training utilities
+
+### How to Contribute
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes with tests
+4. Run the test suite (`pytest tests/ -v`)
+5. Submit a pull request
+
+See our test suite as examples of code quality standards.
+
+## Acknowledgments
+
+This standalone implementation builds upon the excellent work of the Alibaba Qwen team. We've refactored and simplified their code while maintaining full compatibility and adding training support.
+
+Special thanks to:
+- The Qwen team for the original implementation and pretrained models
+- The open-source community for tools like PyTorch, HuggingFace, and librosa
+- All contributors who help improve this standalone version
+
 ## Citation
 
 If you find our paper and code useful in your research, please consider giving a star :star: and citation :pencil: :)
 
+**For the original Qwen3-TTS:**
 ```BibTeX
 @article{Qwen3-TTS,
   title={Qwen3-TTS Technical Report},
   author={Hangrui Hu and Xinfa Zhu and Ting He and Dake Guo and Bin Zhang and Xiong Wang and Zhifang Guo and Ziyue Jiang and Hongkun Hao and Zishan Guo and Xinyu Zhang and Pei Zhang and Baosong Yang and Jin Xu and Jingren Zhou and Junyang Lin},
   journal={arXiv preprint arXiv:2601.15621},
   year={2026}
+}
+```
+
+**For this standalone implementation:**
+```BibTeX
+@misc{Qwen3-TTS-Standalone,
+  title={Qwen3-TTS: Simplified Standalone Implementation},
+  author={Nathanael Perraudin},
+  year={2026},
+  publisher={GitHub},
+  url={https://github.com/nathanael-perraudin-synth/Qwen3-TTS}
 }
 ```
 
