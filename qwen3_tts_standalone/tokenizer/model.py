@@ -24,6 +24,7 @@ from .config import (
     SpeechTokenizerConfig,
     SpeechDecoderConfig,
 )
+from .encoder import MimiEncoderModel
 from ..utils import (
     ACT2FN,
     ALL_ATTENTION_FUNCTIONS,
@@ -797,10 +798,9 @@ class SpeechDecoder(nn.Module):
 
 class SpeechTokenizerModel(nn.Module):
     """
-    Standalone 12Hz tokenizer model (decode only).
+    Standalone 12Hz tokenizer model with both encode and decode.
     
-    Note: This standalone version only supports decoding. For encoding,
-    use the transformers-based MimiModel directly.
+    No dependency on the transformers package.
     """
     
     def __init__(self, config: SpeechTokenizerConfig):
@@ -814,6 +814,37 @@ class SpeechTokenizerModel(nn.Module):
         self.encode_downsample_rate = config.encode_downsample_rate
 
         self.decoder = SpeechDecoder(config.decoder_config)
+        
+        enc = config.encoder_config
+        self.encoder = MimiEncoderModel(
+            audio_channels=enc.audio_channels,
+            num_filters=enc.num_filters,
+            hidden_size=enc.hidden_size,
+            upsampling_ratios=enc.upsampling_ratios,
+            num_residual_layers=enc.num_residual_layers,
+            dilation_growth_rate=enc.dilation_growth_rate,
+            compress=enc.compress,
+            residual_kernel_size=enc.residual_kernel_size,
+            kernel_size=enc.kernel_size,
+            last_kernel_size=enc.last_kernel_size,
+            pad_mode=enc.pad_mode,
+            num_hidden_layers=enc.num_hidden_layers,
+            num_attention_heads=enc.num_attention_heads,
+            num_key_value_heads=enc.num_key_value_heads,
+            head_dim=enc.head_dim,
+            intermediate_size=enc.intermediate_size,
+            layer_scale_initial_scale=enc.layer_scale_initial_scale,
+            norm_eps=enc.norm_eps,
+            rope_theta=enc.rope_theta,
+            max_position_embeddings=enc.max_position_embeddings,
+            encodec_frame_rate=enc.encodec_frame_rate,
+            frame_rate=enc.frame_rate,
+            upsample_groups=enc.upsample_groups,
+            num_quantizers=enc.num_quantizers,
+            num_semantic_quantizers=enc.num_semantic_quantizers,
+            codebook_size=enc.codebook_size,
+            codebook_dim=enc.codebook_dim,
+        )
     
     def get_model_type(self) -> str:
         return self.config.model_type
@@ -829,6 +860,38 @@ class SpeechTokenizerModel(nn.Module):
     
     def get_decode_upsample_rate(self) -> int:
         return self.decode_upsample_rate
+
+    def encode(
+        self,
+        input_values: torch.Tensor,
+        padding_mask: torch.Tensor,
+    ) -> SpeechTokenizerEncoderOutput:
+        """
+        Encode audio waveform to discrete codes.
+        
+        Args:
+            input_values: (batch, time) - raw audio at input_sample_rate
+            padding_mask: (batch, time) - 1 for valid, 0 for padded
+            
+        Returns:
+            SpeechTokenizerEncoderOutput with audio_codes as list of (codes_len, num_quantizers)
+        """
+        # Encoder expects (batch, channels, time)
+        codes = self.encoder.encode(
+            input_values.unsqueeze(1),
+            num_quantizers=self.encoder_valid_num_quantizers,
+        )
+        # codes shape: (batch, num_quantizers, code_length)
+        
+        # Trim each sample based on padding_mask
+        audio_codes = []
+        for code, mask in zip(codes, padding_mask):
+            # Number of valid audio samples -> number of valid code frames
+            valid_samples = mask.sum().item()
+            valid_codes = -(-valid_samples // self.encode_downsample_rate)  # ceil division
+            audio_codes.append(code[:, :valid_codes].transpose(0, 1))  # (codes_len, num_quantizers)
+        
+        return SpeechTokenizerEncoderOutput(audio_codes=audio_codes)
 
     def decode(
         self,
@@ -877,10 +940,9 @@ class SpeechTokenizerModel(nn.Module):
         Returns:
             Loaded model
         """
-        from huggingface_hub import hf_hub_download, snapshot_download
+        from huggingface_hub import snapshot_download
         import json
         
-        # Determine if local or HuggingFace Hub
         if os.path.isdir(pretrained_model_name_or_path):
             model_dir = pretrained_model_name_or_path
         else:
@@ -889,17 +951,12 @@ class SpeechTokenizerModel(nn.Module):
                 allow_patterns=["*.json", "*.safetensors", "*.bin"],
             )
         
-        # Load config
         config_path = os.path.join(model_dir, "config.json")
         with open(config_path, "r") as f:
             config_dict = json.load(f)
         
         config = SpeechTokenizerConfig.from_dict(config_dict)
-        
-        # Create model
         model = cls(config)
-        
-        # Load weights
         model._load_weights(model_dir)
         
         if device is not None:
@@ -910,10 +967,9 @@ class SpeechTokenizerModel(nn.Module):
         return model
     
     def _load_weights(self, model_dir: str) -> None:
-        """Load weights from directory."""
+        """Load weights from directory, mapping HF key prefixes to standalone structure."""
         import glob
         
-        # Try safetensors first
         safetensor_files = glob.glob(os.path.join(model_dir, "*.safetensors"))
         if safetensor_files:
             from safetensors.torch import load_file
@@ -921,25 +977,34 @@ class SpeechTokenizerModel(nn.Module):
             for f in safetensor_files:
                 state_dict.update(load_file(f))
         else:
-            # Fall back to PyTorch format
             bin_files = glob.glob(os.path.join(model_dir, "*.bin"))
             state_dict = {}
             for f in bin_files:
                 state_dict.update(torch.load(f, map_location="cpu"))
         
-        # Filter to decoder weights only and remap keys
+        # Load decoder weights (prefix "decoder.")
         decoder_state_dict = {}
         for key, value in state_dict.items():
             if key.startswith("decoder."):
-                new_key = key[len("decoder."):]
-                decoder_state_dict[new_key] = value
+                decoder_state_dict[key[len("decoder."):]] = value
         
-        # Load decoder weights
         missing, unexpected = self.decoder.load_state_dict(decoder_state_dict, strict=False)
         if missing:
             logger.warning(f"Missing keys in decoder: {missing[:10]}...")
         if unexpected:
             logger.warning(f"Unexpected keys in decoder: {unexpected[:10]}...")
+        
+        # Load encoder weights (prefix "encoder.")
+        encoder_state_dict = {}
+        for key, value in state_dict.items():
+            if key.startswith("encoder."):
+                encoder_state_dict[key[len("encoder."):]] = value
+        
+        missing, unexpected = self.encoder.load_state_dict(encoder_state_dict, strict=False)
+        if missing:
+            logger.warning(f"Missing keys in encoder: {missing[:10]}...")
+        if unexpected:
+            logger.warning(f"Unexpected keys in encoder: {unexpected[:10]}...")
 
 
 __all__ = [

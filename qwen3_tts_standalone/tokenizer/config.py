@@ -78,9 +78,9 @@ class SpeechDecoderConfig:
 @dataclass
 class MimiEncoderConfig:
     """
-    Minimal configuration for the Mimi encoder.
+    Configuration for the Mimi encoder.
     
-    This contains only the fields needed for the standalone encoder.
+    These values match the Qwen3-TTS-Tokenizer-12Hz model config.
     """
     audio_channels: int = 1
     hidden_size: int = 512
@@ -89,30 +89,32 @@ class MimiEncoderConfig:
     num_key_value_heads: int = 8
     head_dim: int = 64
     intermediate_size: int = 2048
-    hidden_act: str = "gelu"
     max_position_embeddings: int = 8000
-    initializer_range: float = 0.02
-    use_cache: bool = True
     sampling_rate: int = 24000
     frame_rate: float = 12.5
-    encodec_frame_rate: int = 75
-    num_codebooks: int = 32
+    num_quantizers: int = 16
+    num_semantic_quantizers: int = 1
     codebook_size: int = 2048
     codebook_dim: int = 256
-    use_conv_shortcut: bool = False
-    vector_quantization_hidden_dimension: int = 256
     upsample_groups: int = 512
     num_filters: int = 64
+    num_residual_layers: int = 1
     residual_kernel_size: int = 3
     compress: int = 2
     dilation_growth_rate: int = 2
     upsampling_ratios: Tuple[int, ...] = (8, 6, 5, 4)
-    norm_type: str = "weight_norm"
     kernel_size: int = 7
     last_kernel_size: int = 3
-    use_causal_conv: bool = True
-    trim_right_ratio: float = 1.0
     pad_mode: str = "constant"
+    norm_eps: float = 1e-5
+    rope_theta: float = 10000.0
+    layer_scale_initial_scale: float = 0.01
+    
+    @property
+    def encodec_frame_rate(self) -> int:
+        """Frame rate after SEANet encoder, before downsample."""
+        import numpy as np
+        return int(self.sampling_rate / np.prod(self.upsampling_ratios))
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
@@ -126,6 +128,9 @@ class MimiEncoderConfig:
         """Create config from dictionary."""
         if "upsampling_ratios" in d and isinstance(d["upsampling_ratios"], list):
             d["upsampling_ratios"] = tuple(d["upsampling_ratios"])
+        # Handle the _frame_rate -> frame_rate rename from HF config
+        if "_frame_rate" in d and "frame_rate" not in d:
+            d["frame_rate"] = d["_frame_rate"]
         valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in d.items() if k in valid_fields}
         return cls(**filtered)
@@ -242,10 +247,9 @@ def convert_to_standalone_config(
             "num_key_value_heads": getattr(enc, "num_key_value_heads", 8),
             "head_dim": getattr(enc, "head_dim", 64),
             "intermediate_size": getattr(enc, "intermediate_size", 2048),
-            "hidden_act": getattr(enc, "hidden_act", "gelu"),
             "sampling_rate": getattr(enc, "sampling_rate", 24000),
             "frame_rate": getattr(enc, "frame_rate", 12.5),
-            "num_codebooks": getattr(enc, "num_codebooks", 32),
+            "num_quantizers": getattr(original_config, "encoder_valid_num_quantizers", 16),
             "codebook_size": getattr(enc, "codebook_size", 2048),
             "codebook_dim": getattr(enc, "codebook_dim", 256),
         }
