@@ -13,7 +13,7 @@ This repository provides a **simplified, standalone, human-friendly** implementa
 - **Simplified Codebase**: Refactored for clarity without sacrificing functionality
 - **Fine-tuning Ready**: Built-in training functions for easy model customization
 - **Full Compatibility**: Drop-in replacement for the original implementation with identical outputs
-- **Comprehensive Tests**: 191+ tests ensuring reliability and equivalence with the original
+- **Comprehensive Tests**: 209+ tests ensuring reliability and equivalence with the original
 
 Perfect for researchers, developers, and practitioners who want to:
 - Understand the internals of modern TTS systems
@@ -68,56 +68,12 @@ This implementation is ideal for:
 | **Code Complexity** | Tightly coupled with HF abstractions | Direct PyTorch, easy to understand |
 | **Fine-tuning Support** | Requires custom training loops | Built-in `forward_finetune()` methods |
 | **Model Loading** | HF AutoModel pattern | Simple `from_pretrained()` wrapper |
-| **Testing** | Limited test coverage | 191+ comprehensive tests |
+| **Testing** | Limited test coverage | 209+ comprehensive tests |
 | **Equivalence** | N/A | Numerically identical outputs |
 | **Documentation** | Scattered across HF docs | Self-contained in codebase |
 | **Extensibility** | Modify HF framework | Modify straightforward PyTorch |
 | **Production Ready** | Framework overhead | Lightweight deployment |
 | **Learning Curve** | Steep (HF + TTS concepts) | Gentle (just TTS concepts) |
-
-## Contents <!-- omit in toc -->
-
-- [News](#news)
-- [Why This Standalone Version?](#why-this-standalone-version)
-  - [Simplification & Clarity](#simplification--clarity)
-  - [Fine-tuning & Customization](#fine-tuning--customization)
-  - [Quality Assurance](#quality-assurance)
-  - [Use Cases](#use-cases)
-  - [Comparison: Standalone vs Original](#comparison-standalone-vs-original)
-- [Overview](#overview)
-  - [Introduction](#introduction)
-  - [Model Architecture](#model-architecture)
-  - [Standalone Implementation Details](#standalone-implementation-details)
-  - [Released Models Description and Download](#released-models-description-and-download)
-- [Quickstart](#quickstart)
-  - [Environment Setup](#environment-setup)
-  - [Quick Start Example](#quick-start-example)
-  - [Python Package Usage](#python-package-usage)
-    - [Custom Voice Generation](#custom-voice-generate)
-    - [Voice Design](#voice-design)
-    - [Voice Clone](#voice-clone)
-      - [Option 1: `Qwen3TTSModel.generate_voice_clone()` (full-featured)](#option-1-qwen3ttsmodelgenerate_voice_clone-full-featured)
-      - [Option 2: `VoiceCloner` (simplified, standalone)](#option-2-voicecloner-simplified-standalone)
-    - [Voice Design then Clone](#voice-design-then-clone)
-    - [Tokenizer Encode and Decode](#tokenizer-encode-and-decode)
-  - [Launch Local Web UI Demo](#launch-local-web-ui-demo)
-  - [DashScope API Usage](#dashscope-api-usage)
-- [vLLM Usage](#vllm-usage)
-- [Fine Tuning](#fine-tuning)
-  - [Training Functions](#training-functions)
-  - [Training Features](#training-features)
-- [Testing](#testing)
-  - [Test Coverage](#test-coverage-191-tests)
-  - [Running Tests](#running-tests)
-  - [Test Features](#test-features)
-  - [Test Organization](#test-organization)
-- [Evaluation](#evaluation)
-- [Contributing](#contributing)
-  - [Priority Areas](#priority-areas)
-  - [How to Contribute](#how-to-contribute)
-- [Acknowledgments](#acknowledgments)
-- [Citation](#citation)
-
 
 ## Quickstart
 
@@ -469,23 +425,33 @@ for i, w in enumerate(wavs):
 
 #### Tokenizer Encode and Decode
 
-If you only want to encode and decode audio for transport or training and so on, `Qwen3TTSTokenizer` supports encode/decode with paths, URLs, numpy waveforms, and dict/list payloads, for example:
+If you only want to encode and decode audio for transport or training, `SpeechTokenizer` supports encode/decode with file paths, numpy waveforms, and batches. It is fully standalone (no `transformers` dependency):
 
 ```python
 import soundfile as sf
-from qwen_tts import Qwen3TTSTokenizer
+from qwen3_tts_standalone.tokenizer import SpeechTokenizer
 
-tokenizer = Qwen3TTSTokenizer.from_pretrained(
+tokenizer = SpeechTokenizer.from_pretrained(
     "Qwen/Qwen3-TTS-Tokenizer-12Hz",
-    device_map="cuda:0",
+    device="cuda:0",
 )
 
-enc = tokenizer.encode("https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/tokenizer_demo_1.wav")
+# Encode audio to discrete codes
+enc = tokenizer.encode("path/to/audio.wav")
+# enc.audio_codes is a list of tensors, each (codes_len, num_quantizers)
+
+# Decode back to waveform
 wavs, sr = tokenizer.decode(enc)
 sf.write("decode_output.wav", wavs[0], sr)
+
+# Batch encode from numpy arrays
+import numpy as np
+audio1 = np.random.randn(24000).astype(np.float32)  # 1 second at 24kHz
+audio2 = np.random.randn(48000).astype(np.float32)  # 2 seconds at 24kHz
+enc = tokenizer.encode([audio1, audio2], sr=24000)
 ```
 
-For more tokenizer examples (including different input formats and batch usage), please refer to the [example codes](https://github.com/QwenLM/Qwen3-TTS/blob/main/examples/test_tokenizer_12hz.py). With those examples and the description for `Qwen3TTSTokenizer`, you can explore more advanced usage patterns.
+The original `qwen_tts.Qwen3TTSTokenizer` is also available if you prefer the HuggingFace-based interface (requires `transformers`). For more tokenizer examples, please refer to the [example codes](https://github.com/QwenLM/Qwen3-TTS/blob/main/examples/test_tokenizer_12hz.py).
 
 
 
@@ -537,12 +503,12 @@ See `tests/test_training.py` for complete training examples and validation.
 
 This implementation includes a comprehensive test suite to ensure correctness and equivalence with the original:
 
-### Test Coverage (191+ Tests)
+### Test Coverage (209+ Tests)
 
 | Category | Tests | Coverage |
 |----------|-------|----------|
 | **Configuration** | 42 | Serialization, validation, compatibility |
-| **Equivalence Testing** | 66 | Output matching with original implementation |
+| **Equivalence Testing** | 84 | Output matching with original implementation |
 | **Training/Fine-tuning** | 18 | Loss computation, gradient flow, overfitting |
 | **Code Predictor** | 11 | Generation, sampling, batch processing |
 | **Voice Cloning** | 10 | API validation, output equivalence |
@@ -585,7 +551,7 @@ pytest tests/ -v -m "not slow"
 tests/
 ├── conftest.py                              # Shared fixtures and utilities
 ├── test_configuration.py                    # Config serialization/validation
-├── test_equivalence_*.py (5 files)         # Original vs standalone comparison
+├── test_equivalence_*.py (7 files)         # Original vs standalone comparison
 ├── test_training.py                         # Fine-tuning functions
 ├── test_code_predictor.py                   # CodePredictor generation
 ├── test_talker.py                           # Talker instantiation
